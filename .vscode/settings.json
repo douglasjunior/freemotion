@@ -1,0 +1,41 @@
+{
+  "editor.tabSize": 2,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always"
+  },
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "js/ts.preferences.importModuleSpecifier": "relative",
+  "vitest.shellType": "terminal",
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Write commit messages in English."
+    },
+    {
+      "text": "Use the imperative mood (e.g. \"fix\", \"add\", \"remove\")."
+    },
+    {
+      "text": "Follow Conventional Commits (Angular): <type>(scope?): short subject. Examples: \"feat(orchestrator): add user language preference\", \"fix(discord): handle empty attachments\"."
+    },
+    {
+      "text": "Main types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Start the message with the appropriate type."
+    },
+    {
+      "text": "The scope is optional and names the affected part of the project (e.g. \"orchestrator\", \"discord\", \"agent\")."
+    },
+    {
+      "text": "Keep the subject concise, preferably <= 50 characters, without a trailing period. Use the body for additional context when needed."
+    },
+    {
+      "text": "Focus on meaningful changes and avoid generic messages such as \"update code\" or \"improve maintainability\"."
+    },
+    {
+      "text": "Ignore generated or metadata files such as package-lock.json unless the change is relevant."
+    },
+    {
+      "text": "Write a single subject line and, when needed, a detailed body after it, separated by a blank line."
+    }
+  ],
+  "git.detectWorktrees": true
+}

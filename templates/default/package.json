@@ -1,0 +1,35 @@
+{
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "freemotion studio",
+    "render": "freemotion render HelloWorld",
+    "render:all": "freemotion render --all",
+    "page": "vite page",
+    "page:build": "vite build page",
+    "ts": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "ffmpeg-static": "^5.3.0",
+    "freemotion": "^{{version}}",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.5"
+  },
+  "allowScripts": {
+    "ffmpeg-static": true
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["ffmpeg-static"]
+  },
+  "trustedDependencies": ["ffmpeg-static"]
+}

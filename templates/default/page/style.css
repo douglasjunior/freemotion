@@ -1,0 +1,75 @@
+:root {
+  --background: #0b0b12;
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f4f4f8;
+  --muted: #9a9ab0;
+  --pink: #ff4f7b;
+  --amber: #ffb547;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: "Inter Variable", system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.text {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+p {
+  color: var(--muted);
+  font-size: 19px;
+}
+
+.cue {
+  color: var(--pink);
+  font-weight: 600;
+}
+
+.progress {
+  width: var(--player-width);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--amber), var(--pink));
+}
+
+.after {
+  padding: 120px 20px 160px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+}

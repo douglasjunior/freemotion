@@ -1,0 +1,95 @@
+{
+  "name": "freemotion",
+  "version": "0.1.0",
+  "description": "Make videos with React. Frame-driven animations, a live studio and an MP4 renderer, all MIT.",
+  "keywords": [
+    "react",
+    "video",
+    "animation",
+    "motion",
+    "mp4",
+    "gif",
+    "ffmpeg",
+    "vite",
+    "programmatic-video",
+    "scrollytelling"
+  ],
+  "author": {
+    "name": "Douglas Nassif Roma Junior",
+    "email": "nassifrroma@gmail.com",
+    "url": "https://github.com/douglasjunior"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/douglasjunior/freemotion.git"
+  },
+  "bugs": {
+    "url": "https://github.com/douglasjunior/freemotion/issues"
+  },
+  "homepage": "https://github.com/douglasjunior/freemotion",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "bin": "./dist/node/cli.js",
+  "files": [
+    "dist",
+    "!dist/**/*.spec.*",
+    "templates"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js",
+    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json",
+    "lint": "eslint . --cache --cache-location .eslintcache/",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && vitest run --config ./vitest.config.e2e.ts",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "playwright-core": "^1.64.1",
+    "vite": "^8.3.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  },
+  "allowScripts": {
+    "unrs-resolver": false,
+    "fsevents": false
+  }
+}
