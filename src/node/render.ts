@@ -10,7 +10,7 @@ import { build, mergeConfig, preview, type InlineConfig } from 'vite';
 import { RENDER_API_GLOBAL, type CompositionMeta } from '../shared/render-api.js';
 
 import { launchBrowser } from './browser.js';
-import { assertFfmpeg, ffmpegArgs, formatFromPath, resolveFfmpeg, type OutputFormat, type VideoFormat } from './ffmpeg.js';
+import { assertFfmpeg, ffmpegArgs, formatFromPath, isVideoFormat, resolveFfmpeg, type OutputFormat, type VideoFormat } from './ffmpeg.js';
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
@@ -42,6 +42,8 @@ export type RenderOptions = {
   readonly frames?: readonly [number, number];
   /** Videos: keep one frame out of every n, and lower the frame rate to match. Default `1`. */
   readonly everyNthFrame?: number;
+  /** GIF and SVG: start over at the end (default), or stop on the last frame. */
+  readonly loop?: boolean;
   /** Merged over each composition's `defaultProps`. */
   readonly props?: Record<string, unknown>;
   readonly concurrency: number;
@@ -129,12 +131,8 @@ async function renderStill(session: Session, job: RenderJob): Promise<RenderResu
   return { id: job.id, output: job.output, format: 'png', frames: 1, seconds: (Date.now() - startedAt) / 1000 };
 }
 
-async function renderVideo(session: Session, job: RenderJob, format: VideoFormat): Promise<RenderResult> {
-  const { options } = session;
-  const startedAt = Date.now();
-  const first = await openTab(session, job.id);
-  const { meta } = first;
-
+/** The frames of a video or animated SVG, honoring `--frames` and `--every-nth-frame`, and their frame rate. */
+function planFrames(meta: CompositionMeta, options: RenderOptions): { frames: number[]; fps: number } {
   const [from, to] = options.frames ?? [0, meta.durationInFrames - 1];
   checkFrame(meta, from, '--frames start');
   checkFrame(meta, to, '--frames end');
@@ -142,7 +140,16 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     throw new Error(`--frames ${from}-${to} is empty.`);
   }
   const step = options.everyNthFrame ?? 1;
-  const frames = Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step);
+  return { frames: Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step), fps: meta.fps / step };
+}
+
+async function renderVideo(session: Session, job: RenderJob, format: VideoFormat): Promise<RenderResult> {
+  const { options } = session;
+  const startedAt = Date.now();
+  const first = await openTab(session, job.id);
+  const { meta } = first;
+
+  const { frames, fps } = planFrames(meta, options);
   const [width, height] = [meta.width * options.scale, meta.height * options.scale];
   if (format !== 'gif' && (width % 2 !== 0 || height % 2 !== 0)) {
     throw new Error(`"${meta.id}" renders at ${width}×${height}; ${format.toUpperCase()} needs an even width and height.`);
@@ -151,7 +158,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   const extra = Math.max(0, Math.min(options.concurrency, frames.length) - 1);
   const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id))))];
 
-  const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({ format, fps: meta.fps / step, crf: options.crf, output: job.output }), {
+  const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({ format, fps, crf: options.crf, loop: options.loop, output: job.output }), {
     stdio: ['pipe', 'inherit', 'inherit'],
   });
   const exited = once(ffmpeg, 'close');
@@ -183,6 +190,56 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   return { id: job.id, output: job.output, format, frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
 }
 
+/**
+ * Animated SVG: one tab draws the frames in order and, after each one, records the stage's DOM. At
+ * the end the page turns what changed between frames into CSS keyframes (see svg-recorder.ts).
+ * With `--frame` the file is a still of that frame.
+ */
+async function renderSvg(session: Session, job: RenderJob): Promise<RenderResult> {
+  const { options } = session;
+  const startedAt = Date.now();
+  const tab = await openTab(session, job.id);
+  const { page, errors, meta } = tab;
+  let frames: number[];
+  let fps = meta.fps;
+  if (options.frame === undefined) {
+    ({ frames, fps } = planFrames(meta, options));
+  } else {
+    checkFrame(meta, options.frame, '--frame');
+    frames = [options.frame];
+  }
+
+  let recorded = 0;
+  const progress = setInterval(() => options.log.progress(`${job.id} · ${recorded}/${frames.length} frames`), 250);
+  try {
+    await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.beginSvg(), RENDER_API_GLOBAL);
+    for (const frame of frames) {
+      await page.evaluate(
+        ([name, value]) => window[name as typeof RENDER_API_GLOBAL]!.setFrame(value),
+        [RENDER_API_GLOBAL, frame] as const,
+      );
+      if (errors.length > 0) {
+        throw errors[0];
+      }
+      await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.recordSvgFrame(), RENDER_API_GLOBAL);
+      recorded++;
+    }
+    const { svg, warnings } = await page.evaluate(
+      ([name, svgOptions]) => window[name as typeof RENDER_API_GLOBAL]!.finishSvg(svgOptions),
+      [RENDER_API_GLOBAL, { fps, loop: options.loop ?? true }] as const,
+    );
+    if (errors.length > 0) {
+      throw errors[0];
+    }
+    warnings.forEach(warning => options.log.info(`  ${job.id}: ${warning}`));
+    await writeFile(job.output, svg);
+  } finally {
+    clearInterval(progress);
+  }
+  await page.close();
+  return { id: job.id, output: job.output, format: 'svg', frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
+}
+
 /** Decides the output file and format of each composition to render. */
 export function planJobs(options: Pick<RenderOptions, 'compositions' | 'output' | 'outDir' | 'format' | 'frame'>, available: readonly string[]): RenderJob[] {
   const ids = options.compositions === 'all' ? available : options.compositions;
@@ -201,7 +258,7 @@ export function planJobs(options: Pick<RenderOptions, 'compositions' | 'output' 
     const output = options.output ?? join(options.outDir, `${id}.${fallback}`);
     const format = options.format ?? formatFromPath(output);
     if (!format) {
-      throw new Error(`Can't tell the format of "${output}". Use a .mp4, .webm, .gif or .png file, or pass --format.`);
+      throw new Error(`Can't tell the format of "${output}". Use a .mp4, .webm, .gif, .png or .svg file, or pass --format.`);
     }
     return { id, output, format };
   });
@@ -247,7 +304,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
     await probe.close();
 
     const jobs = planJobs(options, available);
-    if (jobs.some(job => job.format !== 'png')) {
+    if (jobs.some(job => isVideoFormat(job.format))) {
       await assertFfmpeg(session.ffmpeg);
     }
     const results: RenderResult[] = [];
@@ -256,7 +313,9 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
       await mkdir(dirname(output), { recursive: true });
       const result = job.format === 'png'
         ? await renderStill(session, { ...job, output })
-        : await renderVideo(session, { ...job, output }, job.format);
+        : job.format === 'svg'
+          ? await renderSvg(session, { ...job, output })
+          : await renderVideo(session, { ...job, output }, job.format);
       log.done(`${result.id} · ${result.frames} ${result.frames === 1 ? 'frame' : 'frames'} in ${result.seconds.toFixed(1)}s → ${job.output}`);
       results.push(result);
     }

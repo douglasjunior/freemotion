@@ -17,7 +17,7 @@ Usage
 Commands
   init [directory]     Create a new project (default directory: my-video)
   studio               Preview your compositions with hot reload
-  render <id...>       Render compositions to MP4, WebM, GIF or PNG
+  render <id...>       Render compositions to MP4, WebM, GIF, PNG or animated SVG
 
 Options
   -h, --help           Show help for a command
@@ -47,13 +47,14 @@ Options
   freemotion render --all [options]
 
 Options
-  -o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif or .png)
+  -o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif, .png or .svg)
   --out-dir <dir>             Folder for <id>.<format> files (default: out)
   --all                       Render every composition
-  --format <format>           mp4, webm, gif or png (default: from --output, else mp4; png with --frame)
+  --format <format>           mp4, webm, gif, png or svg (default: from --output, else mp4; png with --frame)
   --frame <n>                 Render a still image of frame n
   --frames <a-b>              Render only frames a to b (inclusive)
-  --every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs)
+  --every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs and SVGs)
+  --no-loop                   GIF and SVG: stop on the last frame instead of starting over
   --props <json|file>         Props merged over defaultProps, as JSON or a path to a .json file
   --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
   --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
@@ -188,6 +189,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
       const { values, positionals } = parseArgs({
         args,
         allowPositionals: true,
+        allowNegative: true,
         options: {
           help: { type: 'boolean', short: 'h' },
           output: { type: 'string', short: 'o' },
@@ -197,6 +199,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           frame: { type: 'string' },
           frames: { type: 'string' },
           'every-nth-frame': { type: 'string' },
+          loop: { type: 'boolean' },
           props: { type: 'string' },
           scale: { type: 'string' },
           crf: { type: 'string' },
@@ -238,6 +241,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           frame: integer(values.frame, '--frame', 0),
           frames: values.frames === undefined ? undefined : parseFrames(values.frames),
           everyNthFrame: integer(values['every-nth-frame'], '--every-nth-frame', 1),
+          loop: values.loop,
           props: values.props === undefined ? undefined : parseProps(values.props, cwd),
           scale: positive(values.scale, '--scale') ?? 1,
           crf: values.crf === undefined ? undefined : integer(values.crf, '--crf', 0),

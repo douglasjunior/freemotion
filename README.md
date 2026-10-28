@@ -126,7 +126,7 @@ Under the hood:
 | | |
 |---|---|
 | **`freemotion studio`** | Starts a Vite dev server whose home page is the studio, with your compositions loaded and hot reload on. |
-| **`freemotion render`** | Bundles the project with Vite, opens it in several headless Chromium tabs and, for each frame, draws it, waits for fonts, images and [`delayRender()`](#async-data-delayrender) holds, captures a PNG and pipes it to ffmpeg, in order. |
+| **`freemotion render`** | Bundles the project with Vite, opens it in several headless Chromium tabs and, for each frame, draws it, waits for fonts, images and [`delayRender()`](#async-data-delayrender) holds, captures a PNG and pipes it to ffmpeg, in order. For an [animated SVG](#animated-svg), one tab records the DOM of every frame instead. |
 | **`<Player>`** | Draws a composition inside your own React app, scaled to fit its container. |
 
 ## 🎬 Studio
@@ -156,6 +156,7 @@ npx freemotion render Intro                      # out/Intro.mp4
 npx freemotion render Intro -o promo.webm        # VP9 WebM
 npx freemotion render Intro -o promo.gif         # animated GIF
 npx freemotion render Intro -o promo.gif --scale 0.5 --every-nth-frame 2   # half size, 15 fps
+npx freemotion render Intro -o banner.svg        # animated SVG, no ffmpeg needed
 npx freemotion render Intro --frame 60           # out/Intro.png, a still
 npx freemotion render Intro --frames 0-89        # only the first 3 seconds
 npx freemotion render Intro --scale 2            # twice the width and height
@@ -169,18 +170,20 @@ npx freemotion render --all                      # every composition, to out/
 | `.webm` | VP9, CRF 32 | Needs an ffmpeg built with `libvpx`. |
 | `.gif` | Palette per video | For lighter files, shrink it with `--scale 0.5` and drop frames with `--every-nth-frame 2`. |
 | `.png` | Lossless | A single frame (`--frame`). ffmpeg is not needed. |
+| `.svg` | CSS keyframes | A vector file that plays by itself, in browsers and GitHub READMEs. ffmpeg is not needed. See [Animated SVG](#animated-svg). |
 
 <details>
 <summary><b>All render options</b></summary>
 
 ```text
--o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif or .png)
+-o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif, .png or .svg)
 --out-dir <dir>             Folder for <id>.<format> files (default: out)
 --all                       Render every composition
---format <format>           mp4, webm, gif or png (default: from --output, else mp4; png with --frame)
+--format <format>           mp4, webm, gif, png or svg (default: from --output, else mp4; png with --frame)
 --frame <n>                 Render a still image of frame n
 --frames <a-b>              Render only frames a to b (inclusive)
---every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs)
+--every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs and SVGs)
+--no-loop                   GIF and SVG: stop on the last frame instead of starting over
 --props <json|file>         Props merged over defaultProps, as JSON or a path to a .json file
 --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
@@ -194,6 +197,25 @@ npx freemotion render --all                      # every composition, to out/
 ```
 
 </details>
+
+### Animated SVG
+
+```bash
+npx freemotion render Banner -o banner.svg                  # loops, like a GIF
+npx freemotion render Banner -o banner.svg --no-loop        # plays once and stays on the last frame
+npx freemotion render Banner -o banner.svg --frame 30       # a still, as vectors
+```
+
+The same composition, the same frames, as one `.svg` file: text stays text, edges stay sharp at any size, and the file is usually far smaller than a GIF. Put it in a README with `<img src="banner.svg">`, in a web page inline or as `<img>`, or anywhere else a browser engine draws SVG.
+
+How it's made: the renderer draws every frame as usual, but instead of a screenshot it records the DOM of the stage. Whatever changed from one frame to the next (an inline style, an SVG attribute, an element that mounted or unmounted, a text that counts) becomes CSS `@keyframes` that step at the frame rate; the rest is written once. The markup goes inside a `<foreignObject>`, so it is the HTML your components produced, along with the stylesheets, the images and the font faces it uses, embedded as `data:` URLs so the file stands alone.
+
+What to know:
+
+- **It needs a browser engine.** Chrome, Edge, Firefox and Safari from 2024 on play it, inline or as `<img>`. Design tools such as Inkscape, Illustrator or Figma don't render `<foreignObject>`, and `<img>` can't run scripts, which is why everything is CSS.
+- **Size grows with change.** A value that moves every frame costs one keyframe per frame. Elements whose attributes CSS can't animate (a `<path d>` that morphs, an `<img src>` that swaps) are written once per distinct value. `--every-nth-frame 2` halves all of it. Fonts are embedded only for the faces and the characters the video uses, but a font family can still weigh a few hundred KB.
+- **Not everything survives.** `<canvas>` is captured as one image per frame (heavy), `<video>` and WebGL don't play, shadow DOM is not recorded, and stylesheet rules must target elements inside the composition (`body` and `html` don't exist in the file). Where the composition paints nothing, the SVG is transparent, where a video would be white.
+- **Timing is frame-exact.** Each keyframe holds for one frame of the original frame rate, like the video. The `--scale`, `--crf` and `--concurrency` options don't apply.
 
 ### Tips for identical renders everywhere
 

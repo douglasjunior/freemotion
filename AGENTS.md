@@ -24,7 +24,9 @@ freemotion/
 │   │   └── scroll.tsx        # useScrollFrame, <ScrollPlayer>, scrollProgress
 │   ├── studio/               # Browser apps served/bundled by the CLI
 │   │   ├── main.tsx, studio.tsx  # `freemotion studio`
-│   │   └── render-page.tsx   # Page the renderer drives in headless Chromium
+│   │   ├── render-page.tsx   # Page the renderer drives in headless Chromium
+│   │   ├── svg-recorder.ts   # Animated SVG: samples the stage's DOM after each frame, embeds styles and resources
+│   │   └── svg-export.ts     # Animated SVG: turns the samples into a <foreignObject> + CSS @keyframes document (pure)
 │   ├── shared/render-api.ts  # Contract between render-page (browser) and render.ts (Node)
 │   └── node/                 # The CLI (Node only)
 │       ├── cli.ts            # bin entry
@@ -46,6 +48,7 @@ freemotion/
 - **One runtime instance.** The Vite plugin aliases `freemotion` to `dist/index.js`, and the studio and render page import the runtime by relative path inside `dist/`. Both resolve to the same files, so the project's components and the host share one React context and one render-hold registry. React is deduped for the same reason.
 - **Everything derives from the frame.** Runtime code never keeps time on its own (no timers or CSS animations). The renderer draws frames in parallel tabs and in any order; the studio and the player jump to arbitrary frames.
 - **Rendering pipeline** (`src/node/render.ts`): Vite build to a temp dir with `render-page` as input, `renderHtmlPlugin` writes `index.html`, Vite preview serves it, each tab `mount()`s the composition and, per frame, `setFrame()` renders with `flushSync`, waits for fonts, holds, images and two animation frames, then the tab is captured through CDP `Page.captureScreenshot` with `optimizeForSpeed` (several times faster than `page.screenshot`, same pixels). `produceInOrder` feeds PNGs to ffmpeg in order.
+- **Animated SVG** (`--format svg`): one tab, frames in order; after each `setFrame()` the page records the stage's DOM (`svg-recorder.ts`) and at the end builds the file (`svg-export.ts`): the markup inside a `<foreignObject>`, and every value that changed between frames as `@keyframes` stepping at the frame rate. Elements are written once per contiguous run of frames they are rendered in, and what is inside them starts with a negative `animation-delay`, because Chromium only starts animations once every ancestor is displayed. No ffmpeg.
 - **Errors must fail the render.** Render errors are caught through `onUncaughtError` in the render page; any `pageerror` in a tab also aborts.
 
 ## Conventions

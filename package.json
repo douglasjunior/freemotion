@@ -1,6 +1,6 @@
 {
   "name": "freemotion",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Make videos with React. Frame-driven animations, a live studio and an MP4 renderer, all MIT.",
   "keywords": [
     "react",
@@ -9,6 +9,7 @@
     "motion",
     "mp4",
     "gif",
+    "svg",
     "ffmpeg",
     "vite",
     "programmatic-video",

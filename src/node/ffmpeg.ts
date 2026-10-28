@@ -5,9 +5,13 @@ import { extname, join } from 'node:path';
 
 
 export type VideoFormat = 'mp4' | 'webm' | 'gif';
-export type OutputFormat = VideoFormat | 'png';
+/** `png` is a still, `svg` an animated vector file; neither needs ffmpeg. */
+export type OutputFormat = VideoFormat | 'png' | 'svg';
 
-export const OUTPUT_FORMATS: readonly OutputFormat[] = ['mp4', 'webm', 'gif', 'png'];
+export const OUTPUT_FORMATS: readonly OutputFormat[] = ['mp4', 'webm', 'gif', 'png', 'svg'];
+
+/** Formats encoded by ffmpeg from PNG frames. */
+export const isVideoFormat = (format: OutputFormat): format is VideoFormat => format !== 'png' && format !== 'svg';
 
 export const DEFAULT_CRF: Record<Exclude<VideoFormat, 'gif'>, number> = { mp4: 18, webm: 32 };
 
@@ -21,10 +25,12 @@ export function formatFromPath(path: string): OutputFormat | null {
 const YUV_FILTERS = 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709';
 
 /** ffmpeg arguments that read PNG frames from stdin and encode them to `output`. */
-export function ffmpegArgs({ format, fps, crf, output }: {
+export function ffmpegArgs({ format, fps, crf, loop = true, output }: {
   readonly format: VideoFormat;
   readonly fps: number;
   readonly crf?: number;
+  /** GIF: play again from the start (default), or stop on the last frame. */
+  readonly loop?: boolean;
   readonly output: string;
 }): string[] {
   const input = ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', '-'];
@@ -48,7 +54,7 @@ export function ffmpegArgs({ format, fps, crf, output }: {
       return [
         ...input,
         '-filter_complex', 'split[a][b];[a]palettegen=stats_mode=full[palette];[b][palette]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
-        '-loop', '0',
+        '-loop', loop ? '0' : '-1',
         output,
       ];
   }

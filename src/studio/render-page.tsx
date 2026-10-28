@@ -6,7 +6,9 @@ import compositions from 'virtual:freemotion/entry';
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
 import { waitForRenderHolds } from '../runtime/delay-render.js';
 import { Stage } from '../runtime/stage.js';
-import { RENDER_API_GLOBAL, type CompositionMeta } from '../shared/render-api.js';
+import { RENDER_API_GLOBAL, type CompositionMeta, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
+
+import { SvgRecorder } from './svg-recorder.js';
 
 
 const list = validateCompositions(compositions);
@@ -65,10 +67,34 @@ async function setFrame(frame: number): Promise<void> {
   }
 }
 
+let recorder: SvgRecorder | null = null;
+
+function beginSvg(): void {
+  recorder = new SvgRecorder();
+}
+
+function recordSvgFrame(): void {
+  const stage = document.querySelector('[data-freemotion-stage]');
+  if (!recorder || !stage) {
+    throw new Error('recordSvgFrame() must be called after beginSvg() and setFrame().');
+  }
+  recorder.record(stage);
+}
+
+function finishSvg(options: SvgExportOptions): Promise<SvgExportResult> {
+  if (!recorder || !mounted) {
+    throw new Error('finishSvg() must be called after beginSvg().');
+  }
+  const { width, height } = mounted.composition;
+  const result = recorder.finish({ ...options, width, height });
+  recorder = null;
+  return result;
+}
+
 async function boot() {
   // With unicode-range, a face is only fetched on first use. Load all of them up front.
   await Promise.all([...document.fonts].map(face => face.load().catch(() => undefined)));
-  window[RENDER_API_GLOBAL] = { compositions: list.map(meta), mount, setFrame };
+  window[RENDER_API_GLOBAL] = { compositions: list.map(meta), mount, setFrame, beginSvg, recordSvgFrame, finishSvg };
 }
 
 void boot();
