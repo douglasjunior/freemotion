@@ -1,5 +1,7 @@
 <p align="center">
-  <img src=".github/assets/banner.png" alt="freemotion: make videos with React. Preview live, render anywhere. An ease-in-out curve with a ball drawn at evenly spaced frames." width="100%">
+  <img src=".github/assets/showcase.gif" alt="A freemotion video: the logo springs in, code is typed in an editor while a preview plays the animation it describes, and a terminal renders the video to MP4." width="800">
+  <br>
+  <sub>This video is a freemotion composition. <a href="https://github.com/douglasjunior/freemotion-examples/tree/main/src/showcase">See its source</a>.</sub>
 </p>
 
 <p align="center">
@@ -29,12 +31,6 @@
 </p>
 
 ---
-
-<p align="center">
-  <img src=".github/assets/showcase.gif" alt="A freemotion video: the logo springs in, code is typed in an editor while a preview plays the animation it describes, and a terminal renders the video to MP4." width="800">
-  <br>
-  <sub>This video is a freemotion composition. <a href="https://github.com/douglasjunior/freemotion-examples/tree/main/src/showcase">See its source</a>.</sub>
-</p>
 
 ## 🚀 Quick Start
 
