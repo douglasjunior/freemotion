@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="220" viewBox="0 0 1280 220" role="img" aria-labelledby="banner-title banner-desc">
+  <title id="banner-title">Douglas Junior - Portfolio</title>
+  <desc id="banner-desc">Portfolio footer banner for Douglas Junior, creator of Agent Remote Control, linking to douglasjunior.work.</desc>
+  <defs>
+    <linearGradient id="banner-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#04050d"/>
+      <stop offset="50%" stop-color="#080c20"/>
+      <stop offset="100%" stop-color="#0a0c1d"/>
+    </linearGradient>
+
+    <radialGradient id="banner-nebula-violet" cx="15%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#8b7bff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#8b7bff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="banner-nebula-cyan" cx="85%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3fd0ff" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#3fd0ff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#3fd0ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="banner-nebula-pink" cx="50%" cy="80%" r="40%">
+      <stop offset="0%" stop-color="#ff6a8e" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ff6a8e" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="banner-stroke" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#ff6a8e" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#3fd0ff" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <linearGradient id="dj-avatar-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e1842"/>
+      <stop offset="50%" stop-color="#0d142e"/>
+      <stop offset="100%" stop-color="#050814"/>
+    </linearGradient>
+
+    <linearGradient id="cta-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b7bff"/>
+      <stop offset="100%" stop-color="#3fd0ff"/>
+    </linearGradient>
+
+    <clipPath id="banner-clip">
+      <rect width="1280" height="220" rx="16"/>
+    </clipPath>
+
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+      .twinkle-1 { animation: twinkle-1 3.2s ease-in-out infinite; }
+      .twinkle-2 { animation: twinkle-2 4.4s ease-in-out infinite; }
+      .twinkle-3 { animation: twinkle-3 5.6s ease-in-out infinite; }
+
+      @keyframes twinkle-1 {
+        0%, 100% { opacity: 0.25; }
+        50% { opacity: 0.95; }
+      }
+      @keyframes twinkle-2 {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 0.20; }
+      }
+      @keyframes twinkle-3 {
+        0%, 100% { opacity: 0.30; }
+        50% { opacity: 0.80; }
+      }
+
+      .pulse-aura {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pulse-aura 3.5s ease-out infinite;
+      }
+      @keyframes pulse-aura {
+        0% { transform: scale(0.95); opacity: 0.8; }
+        70% { transform: scale(1.28); opacity: 0.05; }
+        100% { transform: scale(1.35); opacity: 0; }
+      }
+
+      .orbit-cw {
+        animation: orbit-rotate 14s linear infinite;
+      }
+      @keyframes orbit-rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+        .twinkle-1, .twinkle-2, .twinkle-3 {
+          opacity: 0.7 !important;
+        }
+        .pulse-aura {
+          opacity: 0.3 !important;
+          transform: scale(1.05) !important;
+        }
+      }
+    </style>
+  </defs>
+
+  <g clip-path="url(#banner-clip)">
+    <!-- Background -->
+    <rect width="1280" height="220" fill="url(#banner-bg)"/>
+
+    <!-- Nebula Glows -->
+    <rect width="1280" height="220" fill="url(#banner-nebula-violet)"/>
+    <rect width="1280" height="220" fill="url(#banner-nebula-cyan)"/>
+    <rect width="1280" height="220" fill="url(#banner-nebula-pink)"/>
+
+    <!-- Starfield (twinkle opacity only) -->
+    <g class="twinkle-1" fill="#ffffff">
+      <circle cx="45" cy="50" r="1.3"/>
+      <circle cx="180" cy="30" r="1.5"/>
+      <circle cx="320" cy="180" r="1.2"/>
+      <circle cx="540" cy="40" r="1.6"/>
+      <circle cx="780" cy="170" r="1.4"/>
+      <circle cx="950" cy="35" r="1.3"/>
+      <circle cx="1220" cy="60" r="1.5"/>
+    </g>
+
+    <g class="twinkle-2" fill="#3fd0ff">
+      <circle cx="90" cy="170" r="1.4"/>
+      <circle cx="260" cy="45" r="1.2"/>
+      <circle cx="680" cy="190" r="1.5"/>
+      <circle cx="890" cy="160" r="1.4"/>
+      <circle cx="1060" cy="40" r="1.5"/>
+      <circle cx="1245" cy="180" r="1.3"/>
+    </g>
+
+    <g class="twinkle-3" fill="#ffd56a">
+      <circle cx="130" cy="90" r="1.5"/>
+      <circle cx="440" cy="30" r="1.4"/>
+      <circle cx="610" cy="160" r="1.3"/>
+      <circle cx="840" cy="50" r="1.6"/>
+      <circle cx="1140" cy="170" r="1.4"/>
+    </g>
+
+    <!-- LEFT SIDE: Cosmic Avatar / Emblem -->
+    <g transform="translate(85, 110)">
+      <!-- Outer Orbit Track -->
+      <circle cx="0" cy="0" r="56" fill="none" stroke="#8b7bff" stroke-opacity="0.25" stroke-dasharray="3 5"/>
+
+      <!-- Static wrapper around CW Satellite Orbit -->
+      <g transform="translate(0, 0)">
+        <g class="orbit-cw">
+          <circle cx="56" cy="0" r="4" fill="#ffd56a"/>
+          <circle cx="56" cy="0" r="8" fill="#ffd56a" fill-opacity="0.2"/>
+        </g>
+      </g>
+
+      <!-- Static wrapper around pulse aura -->
+      <g transform="translate(0, 0)">
+        <circle class="pulse-aura" cx="0" cy="0" r="46" fill="none" stroke="#8b7bff" stroke-width="2"/>
+      </g>
+
+      <!-- Avatar Base -->
+      <circle cx="0" cy="0" r="42" fill="url(#dj-avatar-grad)" stroke="#3fd0ff" stroke-width="2"/>
+      <text class="sans" x="0" y="7" fill="#e9ebfa" font-size="20" font-weight="900" text-anchor="middle" letter-spacing="1">DJ</text>
+    </g>
+
+    <!-- MIDDLE: Author Information & 2-Line Description (>=10px padding) -->
+    <g transform="translate(155, 45)">
+      <!-- Name & Badge -->
+      <text class="sans" x="0" y="26" fill="#e9ebfa" font-size="24" font-weight="800">Douglas Junior</text>
+      <g transform="translate(185, 8)">
+        <rect width="150" height="22" rx="11" fill="#ffd56a" fill-opacity="0.12" stroke="#ffd56a" stroke-opacity="0.45" stroke-width="1"/>
+        <text class="sans" x="75" y="15" fill="#ffd56a" font-size="10" font-weight="700" letter-spacing="0.5" text-anchor="middle">CREATOR &amp; ENGINEER</text>
+      </g>
+
+      <!-- Subtitle -->
+      <text class="sans" x="0" y="52" fill="#ffd56a" font-size="13" font-weight="600">Full-Stack &amp; Mobile Engineer · Open Source Creator</text>
+
+      <!-- Card description in two lines (>=10px padding) -->
+      <text class="sans" x="0" y="80" fill="#9ba1c7" font-size="12">
+        <tspan x="0" dy="0">Building developer tools, cross-platform libraries, and autonomous AI systems.</tspan>
+        <tspan x="0" dy="19">Explore more open source projects, documentation and interactive demos at douglasjunior.work.</tspan>
+      </text>
+    </g>
+
+    <!-- RIGHT SIDE: Call to Action & Skill Badges -->
+    <g transform="translate(980, 50)">
+      <!-- CTA Button (w=250, h=48, rx=24, padding > 30px) -->
+      <g transform="translate(0, 0)">
+        <rect width="250" height="48" rx="24" fill="url(#cta-grad)"/>
+        <text class="sans" x="125" y="30" fill="#04050d" font-size="14" font-weight="800" text-anchor="middle" letter-spacing="0.2">douglasjunior.work ↗</text>
+      </g>
+
+      <!-- Technology Tags (>=10px padding) -->
+      <g transform="translate(0, 64)">
+        <g transform="translate(0, 0)">
+          <rect width="115" height="22" rx="11" fill="#090e24" stroke="#8b7bff" stroke-opacity="0.4" stroke-width="1"/>
+          <text class="sans" x="57" y="15" fill="#e9ebfa" font-size="10" font-weight="600" text-anchor="middle">OPEN SOURCE</text>
+        </g>
+        <g transform="translate(125, 0)">
+          <rect width="125" height="22" rx="11" fill="#090e24" stroke="#3fd0ff" stroke-opacity="0.4" stroke-width="1"/>
+          <text class="sans" x="62" y="15" fill="#e9ebfa" font-size="10" font-weight="600" text-anchor="middle">AI &amp; DEV TOOLS</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Outer Rounded Canvas Border -->
+    <rect width="1280" height="220" rx="16" fill="none" stroke="url(#banner-stroke)" stroke-width="2"/>
+  </g>
+</svg>

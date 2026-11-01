@@ -381,3 +381,7 @@ If freemotion saved you a render bill, consider giving it a star. It helps other
 ## 📄 License
 
 [MIT](LICENSE) © Douglas Nassif Roma Junior
+
+<p align="center">
+  <a href="https://douglasjunior.work"><img src="docs/portfolio-banner.svg" alt="Douglas Junior - Portfolio" width="100%"></a>
+</p>
