@@ -1,208 +1,214 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="220" viewBox="0 0 1280 220" role="img" aria-labelledby="banner-title banner-desc">
-  <title id="banner-title">Douglas Junior - Portfolio</title>
-  <desc id="banner-desc">Portfolio footer banner for Douglas Junior, creator of Agent Remote Control, linking to douglasjunior.work.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 340" width="1280" height="340">
   <defs>
-    <linearGradient id="banner-bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#04050d"/>
-      <stop offset="50%" stop-color="#080c20"/>
-      <stop offset="100%" stop-color="#0a0c1d"/>
-    </linearGradient>
-
-    <radialGradient id="banner-nebula-violet" cx="15%" cy="30%" r="50%">
-      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.28"/>
-      <stop offset="60%" stop-color="#8b7bff" stop-opacity="0.08"/>
-      <stop offset="100%" stop-color="#8b7bff" stop-opacity="0"/>
+    <!-- Background Gradients -->
+    <radialGradient id="banner-nebula-left" cx="15%" cy="25%" r="65%">
+      <stop offset="0%" stop-color="#5842d6" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#04050d" stop-opacity="0"/>
     </radialGradient>
-
-    <radialGradient id="banner-nebula-cyan" cx="85%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#3fd0ff" stop-opacity="0.22"/>
-      <stop offset="60%" stop-color="#3fd0ff" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#3fd0ff" stop-opacity="0"/>
+    <radialGradient id="banner-nebula-right" cx="88%" cy="75%" r="60%">
+      <stop offset="0%" stop-color="#1882be" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#04050d" stop-opacity="0"/>
     </radialGradient>
-
-    <radialGradient id="banner-nebula-pink" cx="50%" cy="80%" r="40%">
-      <stop offset="0%" stop-color="#ff6a8e" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#ff6a8e" stop-opacity="0"/>
+    <radialGradient id="banner-nebula-center" cx="50%" cy="100%" r="55%">
+      <stop offset="0%" stop-color="#be3c78" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#04050d" stop-opacity="0"/>
     </radialGradient>
-
-    <linearGradient id="banner-stroke" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8b7bff" stop-opacity="0.7"/>
-      <stop offset="50%" stop-color="#ff6a8e" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#3fd0ff" stop-opacity="0.7"/>
-    </linearGradient>
-
-    <linearGradient id="dj-avatar-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1e1842"/>
-      <stop offset="50%" stop-color="#0d142e"/>
-      <stop offset="100%" stop-color="#050814"/>
-    </linearGradient>
-
-    <linearGradient id="cta-grad" x1="0" y1="0" x2="1" y2="0">
+    <linearGradient id="banner-cosmic-stripe" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#8b7bff"/>
-      <stop offset="100%" stop-color="#3fd0ff"/>
+      <stop offset="35%" stop-color="#3fd0ff"/>
+      <stop offset="70%" stop-color="#ff6a8e"/>
+      <stop offset="100%" stop-color="#ffd56a"/>
+    </linearGradient>
+    <linearGradient id="banner-cta-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(63, 208, 255, 0.22)"/>
+      <stop offset="100%" stop-color="rgba(139, 123, 255, 0.22)"/>
+    </linearGradient>
+    <linearGradient id="dj-ring-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3fd0ff"/>
+      <stop offset="50%" stop-color="#8b7bff"/>
+      <stop offset="100%" stop-color="#ff6a8e"/>
     </linearGradient>
 
-    <clipPath id="banner-clip">
-      <rect width="1280" height="220" rx="16"/>
-    </clipPath>
+    <!-- Filters -->
+    <filter id="cta-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="ring-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
 
     <style>
-      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-      .twinkle-1 { animation: twinkle-1 3.2s ease-in-out infinite; }
-      .twinkle-2 { animation: twinkle-2 4.4s ease-in-out infinite; }
-      .twinkle-3 { animation: twinkle-3 5.6s ease-in-out infinite; }
-
-      @keyframes twinkle-1 {
-        0%, 100% { opacity: 0.25; }
-        50% { opacity: 0.95; }
-      }
-      @keyframes twinkle-2 {
-        0%, 100% { opacity: 0.85; }
-        50% { opacity: 0.20; }
-      }
-      @keyframes twinkle-3 {
-        0%, 100% { opacity: 0.30; }
-        50% { opacity: 0.80; }
+      <![CDATA[
+      @media (prefers-reduced-motion: no-preference) {
+        .anim-twinkle {
+          animation: bannerTwinkle 4s ease-in-out infinite;
+        }
+        .anim-orbit {
+          animation: bannerOrbit 12s linear infinite;
+          transform-box: fill-box;
+          transform-origin: center;
+        }
+        .anim-cta {
+          animation: bannerCtaPulse 3.5s ease-in-out infinite;
+        }
+        .anim-float-subtle {
+          animation: bannerFloat 5s ease-in-out infinite;
+        }
       }
 
-      .pulse-aura {
-        transform-box: fill-box;
-        transform-origin: center;
-        animation: pulse-aura 3.5s ease-out infinite;
-      }
-      @keyframes pulse-aura {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        70% { transform: scale(1.28); opacity: 0.05; }
-        100% { transform: scale(1.35); opacity: 0; }
+      @keyframes bannerTwinkle {
+        0%, 100% { opacity: 0.3; }
+        50%      { opacity: 0.9; }
       }
 
-      .orbit-cw {
-        animation: orbit-rotate 14s linear infinite;
-      }
-      @keyframes orbit-rotate {
+      @keyframes bannerOrbit {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
       }
 
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          animation: none !important;
-          transition: none !important;
+      @keyframes bannerCtaPulse {
+        0%, 100% {
+          transform: translateY(0);
         }
-        .twinkle-1, .twinkle-2, .twinkle-3 {
-          opacity: 0.7 !important;
-        }
-        .pulse-aura {
-          opacity: 0.3 !important;
-          transform: scale(1.05) !important;
+        50% {
+          transform: translateY(-2px);
         }
       }
+
+      @keyframes bannerFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-3px); }
+      }
+      ]]>
     </style>
   </defs>
 
-  <g clip-path="url(#banner-clip)">
-    <!-- Background -->
-    <rect width="1280" height="220" fill="url(#banner-bg)"/>
+  <!-- Canvas Background -->
+  <rect width="1280" height="340" rx="20" fill="#04050d"/>
+  <rect width="1280" height="340" rx="20" fill="url(#banner-nebula-left)"/>
+  <rect width="1280" height="340" rx="20" fill="url(#banner-nebula-right)"/>
+  <rect width="1280" height="340" rx="20" fill="url(#banner-nebula-center)"/>
 
-    <!-- Nebula Glows -->
-    <rect width="1280" height="220" fill="url(#banner-nebula-violet)"/>
-    <rect width="1280" height="220" fill="url(#banner-nebula-cyan)"/>
-    <rect width="1280" height="220" fill="url(#banner-nebula-pink)"/>
+  <!-- Background Grid -->
+  <g opacity="0.10">
+    <line x1="160" y1="0" x2="160" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="360" y1="0" x2="360" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="560" y1="0" x2="560" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="760" y1="0" x2="760" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="960" y1="0" x2="960" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="1160" y1="0" x2="1160" y2="340" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="0" y1="80" x2="1280" y2="80" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="0" y1="170" x2="1280" y2="170" stroke="#8b7bff" stroke-width="1"/>
+    <line x1="0" y1="260" x2="1280" y2="260" stroke="#8b7bff" stroke-width="1"/>
+  </g>
 
-    <!-- Starfield (twinkle opacity only) -->
-    <g class="twinkle-1" fill="#ffffff">
-      <circle cx="45" cy="50" r="1.3"/>
-      <circle cx="180" cy="30" r="1.5"/>
-      <circle cx="320" cy="180" r="1.2"/>
-      <circle cx="540" cy="40" r="1.6"/>
-      <circle cx="780" cy="170" r="1.4"/>
-      <circle cx="950" cy="35" r="1.3"/>
-      <circle cx="1220" cy="60" r="1.5"/>
+  <!-- Stars -->
+  <g class="anim-twinkle" fill="#ffd56a">
+    <circle cx="210" cy="50" r="1.4" opacity="0.6"/>
+    <circle cx="480" cy="40" r="1.8" opacity="0.8"/>
+    <circle cx="890" cy="55" r="1.5" opacity="0.5"/>
+    <circle cx="1210" cy="90" r="1.7" opacity="0.7"/>
+    <circle cx="680" cy="290" r="1.3" opacity="0.4"/>
+  </g>
+  <g fill="#3fd0ff">
+    <circle cx="95" cy="270" r="1.4" opacity="0.5"/>
+    <circle cx="740" cy="70" r="1.6" opacity="0.6"/>
+    <circle cx="1140" cy="280" r="1.5" opacity="0.5"/>
+  </g>
+
+  <!-- Outer Border Frame -->
+  <rect x="1" y="1" width="1278" height="338" rx="19" fill="none" stroke="rgba(150, 160, 255, 0.16)" stroke-width="2"/>
+  <!-- Bottom Stripe -->
+  <rect x="0" y="336" width="1280" height="4" fill="url(#banner-cosmic-stripe)"/>
+
+  <!-- ==================== HEADER / TOP ROW ==================== -->
+  <g transform="translate(60, 0)">
+    <!-- Douglas Junior Cosmic Emblem -->
+    <g transform="translate(0, 48)">
+      <circle cx="44" cy="44" r="40" fill="#0d0f27" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1.5"/>
+      <!-- Glowing Orbital Ring -->
+      <ellipse class="anim-orbit" cx="44" cy="44" rx="36" ry="16" fill="none" stroke="url(#dj-ring-grad)" stroke-width="2" stroke-dasharray="8 6" filter="url(#ring-glow)"/>
+      <circle cx="44" cy="44" r="28" fill="#141838"/>
+      <!-- Monogram DJ -->
+      <text x="44" y="52" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" fill="#e9ebfa" text-anchor="middle" letter-spacing="-1">DJ</text>
     </g>
 
-    <g class="twinkle-2" fill="#3fd0ff">
-      <circle cx="90" cy="170" r="1.4"/>
-      <circle cx="260" cy="45" r="1.2"/>
-      <circle cx="680" cy="190" r="1.5"/>
-      <circle cx="890" cy="160" r="1.4"/>
-      <circle cx="1060" cy="40" r="1.5"/>
-      <circle cx="1245" cy="180" r="1.3"/>
-    </g>
-
-    <g class="twinkle-3" fill="#ffd56a">
-      <circle cx="130" cy="90" r="1.5"/>
-      <circle cx="440" cy="30" r="1.4"/>
-      <circle cx="610" cy="160" r="1.3"/>
-      <circle cx="840" cy="50" r="1.6"/>
-      <circle cx="1140" cy="170" r="1.4"/>
-    </g>
-
-    <!-- LEFT SIDE: Cosmic Avatar / Emblem -->
-    <g transform="translate(85, 110)">
-      <!-- Outer Orbit Track -->
-      <circle cx="0" cy="0" r="56" fill="none" stroke="#8b7bff" stroke-opacity="0.25" stroke-dasharray="3 5"/>
-
-      <!-- Static wrapper around CW Satellite Orbit -->
-      <g transform="translate(0, 0)">
-        <g class="orbit-cw">
-          <circle cx="56" cy="0" r="4" fill="#ffd56a"/>
-          <circle cx="56" cy="0" r="8" fill="#ffd56a" fill-opacity="0.2"/>
-        </g>
+    <!-- Header Titles -->
+    <g transform="translate(108, 48)">
+      <!-- Pill -->
+      <g transform="translate(0, 2)">
+        <rect width="250" height="24" rx="12" fill="rgba(139, 123, 255, 0.12)" stroke="#8b7bff" stroke-width="1"/>
+        <circle cx="12" cy="12" r="3.5" fill="#3fd0ff"/>
+        <text x="24" y="16" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#e9ebfa" letter-spacing="1">DOUGLAS JUNIOR · OPEN SOURCE</text>
       </g>
 
-      <!-- Static wrapper around pulse aura -->
-      <g transform="translate(0, 0)">
-        <circle class="pulse-aura" cx="0" cy="0" r="46" fill="none" stroke="#8b7bff" stroke-width="2"/>
-      </g>
-
-      <!-- Avatar Base -->
-      <circle cx="0" cy="0" r="42" fill="url(#dj-avatar-grad)" stroke="#3fd0ff" stroke-width="2"/>
-      <text class="sans" x="0" y="7" fill="#e9ebfa" font-size="20" font-weight="900" text-anchor="middle" letter-spacing="1">DJ</text>
-    </g>
-
-    <!-- MIDDLE: Author Information & 2-Line Description (>=10px padding) -->
-    <g transform="translate(155, 45)">
-      <!-- Name & Badge -->
-      <text class="sans" x="0" y="26" fill="#e9ebfa" font-size="24" font-weight="800">Douglas Junior</text>
-      <g transform="translate(185, 8)">
-        <rect width="150" height="22" rx="11" fill="#ffd56a" fill-opacity="0.12" stroke="#ffd56a" stroke-opacity="0.45" stroke-width="1"/>
-        <text class="sans" x="75" y="15" fill="#ffd56a" font-size="10" font-weight="700" letter-spacing="0.5" text-anchor="middle">CREATOR &amp; ENGINEER</text>
-      </g>
-
-      <!-- Subtitle -->
-      <text class="sans" x="0" y="52" fill="#ffd56a" font-size="13" font-weight="600">Full-Stack &amp; Mobile Engineer · Open Source Creator</text>
-
-      <!-- Card description in two lines (>=10px padding) -->
-      <text class="sans" x="0" y="80" fill="#9ba1c7" font-size="12">
-        <tspan x="0" dy="0">Building developer tools, cross-platform libraries, and autonomous AI systems.</tspan>
-        <tspan x="0" dy="19">Explore more open source projects, documentation and interactive demos at douglasjunior.work.</tspan>
+      <text x="0" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" fill="#ffffff" letter-spacing="-0.3">
+        Discover More Open Source Projects
+      </text>
+      <text x="0" y="82" font-family="system-ui, -apple-system, sans-serif" font-size="14.5" fill="#9ba1c7">
+        Explore modern React Native libraries, motion tools, and developer utilities maintained with passion.
       </text>
     </g>
 
-    <!-- RIGHT SIDE: Call to Action & Skill Badges -->
-    <g transform="translate(980, 50)">
-      <!-- CTA Button (w=250, h=48, rx=24, padding > 30px) -->
-      <g transform="translate(0, 0)">
-        <rect width="250" height="48" rx="24" fill="url(#cta-grad)"/>
-        <text class="sans" x="125" y="30" fill="#04050d" font-size="14" font-weight="800" text-anchor="middle" letter-spacing="0.2">douglasjunior.work ↗</text>
-      </g>
-
-      <!-- Technology Tags (>=10px padding) -->
-      <g transform="translate(0, 64)">
-        <g transform="translate(0, 0)">
-          <rect width="115" height="22" rx="11" fill="#090e24" stroke="#8b7bff" stroke-opacity="0.4" stroke-width="1"/>
-          <text class="sans" x="57" y="15" fill="#e9ebfa" font-size="10" font-weight="600" text-anchor="middle">OPEN SOURCE</text>
-        </g>
-        <g transform="translate(125, 0)">
-          <rect width="125" height="22" rx="11" fill="#090e24" stroke="#3fd0ff" stroke-opacity="0.4" stroke-width="1"/>
-          <text class="sans" x="62" y="15" fill="#e9ebfa" font-size="10" font-weight="600" text-anchor="middle">AI &amp; DEV TOOLS</text>
-        </g>
+    <!-- Visit Portfolio CTA Button -->
+    <g transform="translate(940, 60)">
+      <g class="anim-cta">
+        <rect width="220" height="48" rx="24" fill="url(#banner-cta-grad)" stroke="#3fd0ff" stroke-width="1.8" filter="url(#cta-glow)"/>
+        <text x="110" y="29" font-family="system-ui, -apple-system, sans-serif" font-size="14.5" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="0.3">
+          douglasjunior.work ↗
+        </text>
       </g>
     </g>
+  </g>
 
-    <!-- Outer Rounded Canvas Border -->
-    <rect width="1280" height="220" rx="16" fill="none" stroke="url(#banner-stroke)" stroke-width="2"/>
+  <!-- ==================== BOTTOM ROW: SHOWCASE CARDS ==================== -->
+  <g transform="translate(60, 185)">
+    <g class="anim-float-subtle">
+      <!-- Card 1: Android Simple Tooltip -->
+      <g transform="translate(0, 0)">
+        <rect width="272" height="110" rx="14" fill="rgba(13, 15, 36, 0.7)" stroke="rgba(255, 106, 142, 0.28)" stroke-width="1.2"/>
+        <circle cx="28" cy="28" r="14" fill="rgba(255, 106, 142, 0.15)"/>
+        <text x="28" y="33" font-family="system-ui, -apple-system, sans-serif" font-size="14" text-anchor="middle">💬</text>
+        <text x="52" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#e9ebfa">android-simple-tooltip</text>
+        <text x="52" y="44" font-family="ui-monospace, monospace" font-size="11" fill="#ff6a8e">Android Tooltip Library</text>
+        <text x="16" y="74" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">Lightweight and customizable</text>
+        <text x="16" y="90" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">popup tooltips for Android.</text>
+      </g>
+
+      <!-- Card 2: React Native Keyboard Manager -->
+      <g transform="translate(296, 0)">
+        <rect width="272" height="110" rx="14" fill="rgba(13, 15, 36, 0.7)" stroke="rgba(139, 123, 255, 0.28)" stroke-width="1.2"/>
+        <circle cx="28" cy="28" r="14" fill="rgba(139, 123, 255, 0.15)"/>
+        <text x="28" y="33" font-family="system-ui, -apple-system, sans-serif" font-size="14" text-anchor="middle">⌨️</text>
+        <text x="52" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#e9ebfa">react-native-keyboard-manager</text>
+        <text x="52" y="44" font-family="ui-monospace, monospace" font-size="11" fill="#8b7bff">iOS Keyboard Avoidance</text>
+        <text x="16" y="74" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">Prevent the keyboard from covering</text>
+        <text x="16" y="90" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">inputs on React Native iOS.</text>
+      </g>
+
+      <!-- Card 3: React Native PDF Renderer -->
+      <g transform="translate(592, 0)">
+        <rect width="272" height="110" rx="14" fill="rgba(13, 15, 36, 0.7)" stroke="rgba(63, 208, 255, 0.28)" stroke-width="1.2"/>
+        <circle cx="28" cy="28" r="14" fill="rgba(63, 208, 255, 0.15)"/>
+        <text x="28" y="33" font-family="system-ui, -apple-system, sans-serif" font-size="14" text-anchor="middle">📄</text>
+        <text x="52" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="700" fill="#e9ebfa">react-native-pdf-renderer</text>
+        <text x="52" y="44" font-family="ui-monospace, monospace" font-size="11" fill="#3fd0ff">Native PDF Viewer</text>
+        <text x="16" y="74" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">High-performance native PDF</text>
+        <text x="16" y="90" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">rendering for iOS and Android.</text>
+      </g>
+
+      <!-- Card 4: React Native Get Location -->
+      <g transform="translate(888, 0)">
+        <rect width="272" height="110" rx="14" fill="rgba(13, 15, 36, 0.7)" stroke="rgba(255, 213, 106, 0.28)" stroke-width="1.2"/>
+        <circle cx="28" cy="28" r="14" fill="rgba(255, 213, 106, 0.15)"/>
+        <text x="28" y="33" font-family="system-ui, -apple-system, sans-serif" font-size="14" text-anchor="middle">📍</text>
+        <text x="52" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="700" fill="#e9ebfa">react-native-get-location</text>
+        <text x="52" y="44" font-family="ui-monospace, monospace" font-size="11" fill="#ffd56a">Geolocation Provider</text>
+        <text x="16" y="74" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">Simple, robust one-time device</text>
+        <text x="16" y="90" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#9ba1c7">location for React Native.</text>
+      </g>
+    </g>
   </g>
 </svg>
