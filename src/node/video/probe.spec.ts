@@ -70,6 +70,15 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'alpha.mov':
   Stream #0:0(und): Video: qtrle, rgba, 640x480, 24 fps, 24 tbr, 24 tbn
     `;
     expect(parseFfmpegInfo(movRgba).hasAlpha).toBe(true);
+
+    const vp9AlphaMode = `
+Input #0, matroska,webm, from 'vp9alpha.webm':
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 400 kb/s
+  Stream #0:0(eng): Video: vp9, yuv420p(tv), 640x360, 30 fps, 30 tbr, 1k tbn (default)
+    Metadata:
+      alpha_mode      : 1
+    `;
+    expect(parseFfmpegInfo(vp9AlphaMode).hasAlpha).toBe(true);
   });
 
   it('throws an error when no video stream is present', () => {

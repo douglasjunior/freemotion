@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 
 import { FrameDecoder } from './frame-decoder.js';
-import { sourceFrameIndex, sourceTimeFromIndex } from './frame-math.js';
+import { sourceFrameIndex } from './frame-math.js';
 import { ByteLruCache } from './lru-cache.js';
 import { probeMedia } from './probe.js';
 
@@ -55,6 +55,11 @@ export class FrameService {
     }
 
     const info = await probeMedia(src, this.ffmpeg);
+
+    if (this.isClosed) {
+      throw new Error('freemotion: FrameService is closed.');
+    }
+
     const frameIndex = sourceFrameIndex(time, info.fps);
     const usePng = Boolean(transparent && info.hasAlpha);
     const contentType = usePng ? 'image/png' : 'image/jpeg';
@@ -91,13 +96,20 @@ export class FrameService {
     contentType: 'image/jpeg' | 'image/png',
     format: 'jpeg' | 'png',
   ): Promise<FrameResult> {
+    if (this.isClosed) {
+      throw new Error('freemotion: FrameService is closed.');
+    }
+
     const sourceKey = `${src}:${format}`;
-    const decoders = this.decoders.get(sourceKey) ?? [];
+    const allDecoders = this.decoders.get(sourceKey) ?? [];
+
+    // Filter out closed or exited decoders
+    const activeDecoders = allDecoders.filter(d => !d.closed && !d.exited);
 
     const maxJumpFrames = Math.round(2 * fps); // ~2 seconds forward jump threshold
 
-    // Choose decoder with position <= frameIndex and jump <= maxJumpFrames
-    const eligible = decoders.filter(d => !d.closed && d.position <= frameIndex && (frameIndex - d.position) <= maxJumpFrames);
+    // Choose active decoder with position <= frameIndex and jump <= maxJumpFrames
+    const eligible = activeDecoders.filter(d => d.position <= frameIndex && (frameIndex - d.position) <= maxJumpFrames);
 
     let decoder: FrameDecoder;
     const firstEligible = eligible.sort((a, b) => b.position - a.position)[0];
@@ -105,15 +117,24 @@ export class FrameService {
       // Pick the closest decoder to frameIndex (maximum position)
       decoder = firstEligible;
     } else {
-      // Need a new decoder seeking to target
-      const startTime = sourceTimeFromIndex(frameIndex, fps);
+      if (this.isClosed) {
+        throw new Error('freemotion: FrameService is closed.');
+      }
+
+      // Seek half a frame before target to guarantee the first frame pts matches target
+      const startTime = Math.max(0, (frameIndex - 0.5) / fps);
       const isVp9Alpha = codec.includes('vp9') && hasAlpha;
 
-      if (decoders.length >= 2) {
-        // Pick least recently used decoder to replace
-        decoders.sort((a, b) => a.lastUsedAt - b.lastUsedAt);
-        const toClose = decoders.shift()!;
-        void toClose.close();
+      let currentDecoders = [...activeDecoders];
+      if (currentDecoders.length >= 2) {
+        // Prefer closing an idle decoder (pendingCount === 0)
+        const idleDecoders = currentDecoders.filter(d => d.pendingCount === 0);
+        if (idleDecoders.length > 0) {
+          idleDecoders.sort((a, b) => a.lastUsedAt - b.lastUsedAt);
+          const toClose = idleDecoders[0]!;
+          currentDecoders = currentDecoders.filter(d => d !== toClose);
+          void toClose.close();
+        }
       }
 
       decoder = new FrameDecoder({
@@ -121,6 +142,7 @@ export class FrameService {
         src,
         fps,
         startTime,
+        targetFrameIndex: frameIndex,
         transparent: usePng,
         isVp9Alpha,
         spawn: this.spawnFn,
@@ -136,8 +158,8 @@ export class FrameService {
         },
       });
 
-      decoders.push(decoder);
-      this.decoders.set(sourceKey, decoders);
+      currentDecoders.push(decoder);
+      this.decoders.set(sourceKey, currentDecoders);
     }
 
     const buffer = await decoder.requestFrame(frameIndex);
@@ -155,6 +177,11 @@ export class FrameService {
 
   async close(): Promise<void> {
     this.isClosed = true;
+
+    // Wait for in-flight requests to complete or abort
+    if (this.inflight.size > 0) {
+      await Promise.allSettled(Array.from(this.inflight.values()));
+    }
 
     const closePromises: Promise<void>[] = [];
     for (const decodersList of this.decoders.values()) {

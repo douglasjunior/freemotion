@@ -70,10 +70,12 @@ export function parseFfmpegInfo(stderr: string): MediaInfo {
     }
   }
 
+  const hasAlphaMode = /alpha_mode\s*:\s*1/i.test(stderr);
   const hasAlpha = pixFmt.includes('yuva')
     || pixFmt.includes('rgba')
     || pixFmt.includes('bgra')
-    || pixFmt.includes('argb');
+    || pixFmt.includes('argb')
+    || (codec.includes('vp9') && hasAlphaMode);
 
   let fps = 30;
   const fpsMatch = videoLine.match(/(\d+(?:\.\d+)?)\s*fps/);

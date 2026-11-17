@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 
 import { FrameService } from './frame-service.js';
 
@@ -75,7 +75,8 @@ export async function startVideoFrameServer(options: VideoServerOptions): Promis
       return;
     }
 
-    if (src.includes('..') || /^[a-zA-Z]:[/\\]/.test(src) || src.startsWith('\\\\')) {
+    const segments = src.split(/[\\/]/);
+    if (segments.includes('..') || /^[a-zA-Z]:[/\\]/.test(src) || src.startsWith('\\\\')) {
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end(
         'freemotion: invalid video path. Directory traversal and absolute filesystem paths are not allowed; '
@@ -86,8 +87,9 @@ export async function startVideoFrameServer(options: VideoServerOptions): Promis
 
     const relativePath = src.replace(/^\/+/, '');
     const resolvedPath = resolve(resolvedPublicDir, relativePath);
+    const relFromPublic = relative(resolvedPublicDir, resolvedPath);
 
-    if (!resolvedPath.startsWith(resolvedPublicDir)) {
+    if (relFromPublic.startsWith('..') || isAbsolute(relFromPublic)) {
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('freemotion: path escapes public directory.');
       return;

@@ -17,6 +17,24 @@ const hasFfmpeg = (() => {
   }
 })();
 
+function toRgb24(buffer: Buffer): Buffer {
+  const res = spawnSync('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-f',
+    'image2pipe',
+    '-i',
+    '-',
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgb24',
+    '-',
+  ], { input: buffer });
+  return res.stdout;
+}
+
 describe('FrameService unit logic', () => {
   const JPEG_FRAME = Buffer.from([
     0xFF, 0xD8, // SOI
@@ -46,7 +64,10 @@ describe('FrameService unit logic', () => {
       stdout.resume = vi.fn() as unknown as () => typeof stdout;
       child.stdout = stdout;
       child.stderr = new EventEmitter() as unknown as NonNullable<ChildProcess['stderr']>;
-      child.kill = vi.fn() as unknown as () => boolean;
+      child.kill = vi.fn().mockImplementation(() => {
+        child.emit('close', 0);
+        return true;
+      }) as unknown as () => boolean;
 
       setTimeout(() => {
         stdout.emit('data', JPEG_FRAME);
@@ -70,15 +91,32 @@ describe('FrameService unit logic', () => {
     await service.close();
     vi.restoreAllMocks();
   });
+
+  it('rejects immediately if closed and prevents spawning new decoders', async () => {
+    let spawnCount = 0;
+    const fakeSpawn = vi.fn().mockImplementation(() => {
+      spawnCount++;
+      return new EventEmitter();
+    });
+
+    const service = new FrameService({ spawn: fakeSpawn });
+    await service.close();
+
+    await expect(service.getFrame({ src: 'sample.mp4', time: 0 })).rejects.toThrow(/closed/);
+    expect(spawnCount).toBe(0);
+  });
 });
 
 describe.runIf(hasFfmpeg)('FrameService with real ffmpeg', () => {
   let tmpDir: string;
   let testVideoPath: string;
+  let testVideo60FpsPath: string;
 
   beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'freemotion-test-frames-'));
     testVideoPath = join(tmpDir, 'test.mp4');
+    testVideo60FpsPath = join(tmpDir, 'test60.mp4');
+
     // Generate 4-second 30 fps video (120 frames total)
     spawnSync('ffmpeg', [
       '-hide_banner',
@@ -93,6 +131,21 @@ describe.runIf(hasFfmpeg)('FrameService with real ffmpeg', () => {
       '4',
       testVideoPath,
     ]);
+
+    // Generate 2-second 60 fps video (120 frames total)
+    spawnSync('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=64x64:rate=60',
+      '-t',
+      '2',
+      testVideo60FpsPath,
+    ]);
   });
 
   afterAll(() => {
@@ -101,6 +154,24 @@ describe.runIf(hasFfmpeg)('FrameService with real ffmpeg', () => {
     } catch {
       // Ignore cleanup error
     }
+  });
+
+  it('maps arbitrary composition time to correct frame on a 60 fps source', async () => {
+    const service = new FrameService();
+
+    // Composition at 30 fps, frame 1 -> time = 1 / 30 s -> should be source frame 2
+    const f1 = await service.getFrame({ src: testVideo60FpsPath, time: 1 / 30 });
+    expect(f1.frameIndex).toBe(2);
+
+    // Composition at 30 fps, frame 2 -> time = 2 / 30 s -> should be source frame 4
+    const f2 = await service.getFrame({ src: testVideo60FpsPath, time: 2 / 30 });
+    expect(f2.frameIndex).toBe(4);
+
+    // Composition at 30 fps, frame 15 -> time = 0.5 s -> should be source frame 30
+    const f15 = await service.getFrame({ src: testVideo60FpsPath, time: 0.5 });
+    expect(f15.frameIndex).toBe(30);
+
+    await service.close();
   });
 
   it('uses 1 spawn for sequential requests and reads forward on small jumps', async () => {
@@ -166,35 +237,50 @@ describe.runIf(hasFfmpeg)('FrameService with real ffmpeg', () => {
     await service.close();
   });
 
-  it('matches single-frame ffmpeg extraction within color tolerance', async () => {
+  it('matches single-frame ffmpeg extraction pixel-for-pixel on multiple frames', async () => {
     const service = new FrameService();
-    const frameResult = await service.getFrame({ src: testVideoPath, time: 1.0 });
 
-    // Extract frame using standalone ffmpeg command
-    const single = spawnSync('ffmpeg', [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-ss',
-      '1.0',
-      '-i',
-      testVideoPath,
-      '-vf',
-      'scale=out_color_matrix=bt601:out_range=pc,format=yuvj420p',
-      '-frames:v',
-      '1',
-      '-c:v',
-      'mjpeg',
-      '-q:v',
-      '2',
-      '-f',
-      'image2pipe',
-      '-',
-    ]);
+    // Verify frames 2, 5, 7, 10
+    for (const frame of [2, 5, 7, 10]) {
+      const time = frame / 30;
+      const frameResult = await service.getFrame({ src: testVideoPath, time });
 
-    expect(single.status).toBe(0);
-    // JPEG outputs from identical parameters should match closely in length and byte content
-    expect(Math.abs(frameResult.buffer.byteLength - single.stdout.byteLength)).toBeLessThan(100);
+      const seekTime = Math.max(0, (frame - 0.5) / 30);
+      const single = spawnSync('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-ss',
+        seekTime.toFixed(6),
+        '-i',
+        testVideoPath,
+        '-vf',
+        'scale=out_color_matrix=bt601:out_range=pc,format=yuvj420p',
+        '-frames:v',
+        '1',
+        '-c:v',
+        'mjpeg',
+        '-q:v',
+        '2',
+        '-f',
+        'image2pipe',
+        '-',
+      ]);
+
+      expect(single.status).toBe(0);
+
+      const rgbService = toRgb24(frameResult.buffer);
+      const rgbSingle = toRgb24(single.stdout);
+
+      expect(rgbService.length).toBe(rgbSingle.length);
+
+      let delta = 0;
+      for (let i = 0; i < rgbService.length; i++) {
+        delta += Math.abs((rgbService[i] ?? 0) - (rgbSingle[i] ?? 0));
+      }
+      const avgDelta = delta / rgbService.length;
+      expect(avgDelta).toBeLessThan(1.0); // exact pixel match within JPEG compression tolerance
+    }
 
     await service.close();
   });

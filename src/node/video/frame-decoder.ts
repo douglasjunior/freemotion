@@ -6,13 +6,13 @@ import { sourceFrameIndex } from './frame-math.js';
 const JPEG_SOI = Buffer.from([0xFF, 0xD8]);
 const JPEG_EOI = Buffer.from([0xFF, 0xD9]);
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-const PNG_IEND = Buffer.from('IEND', 'ascii');
 
 export type FrameDecoderOptions = {
   readonly ffmpeg?: string;
   readonly src: string;
   readonly fps: number;
   readonly startTime?: number;
+  readonly targetFrameIndex?: number;
   readonly transparent?: boolean;
   readonly isVp9Alpha?: boolean;
   readonly spawn?: typeof spawn;
@@ -33,8 +33,11 @@ export class FrameDecoder {
   private maxRequestedFrame: number;
   private isPaused = false;
   private isClosed = false;
+  private isExited = false;
+  private exitError: Error | null = null;
 
   private child: ChildProcess | null = null;
+  private chunks: Buffer[] = [];
   private accumulated = Buffer.alloc(0);
   private stderrOutput = '';
   private readonly pendingWaiters = new Map<number, FrameWaiter>();
@@ -44,7 +47,7 @@ export class FrameDecoder {
 
   constructor(private readonly options: FrameDecoderOptions) {
     const startTime = options.startTime ?? 0;
-    this.startFrame = sourceFrameIndex(startTime, options.fps);
+    this.startFrame = options.targetFrameIndex ?? sourceFrameIndex(startTime, options.fps);
     this.currentFrameIndex = this.startFrame;
     this.maxRequestedFrame = this.startFrame;
     this.lastUsedAt = Date.now();
@@ -64,6 +67,14 @@ export class FrameDecoder {
     return this.isClosed;
   }
 
+  get exited(): boolean {
+    return this.isExited;
+  }
+
+  get pendingCount(): number {
+    return this.pendingWaiters.size;
+  }
+
   private startProcess(): void {
     const {
       ffmpeg = 'ffmpeg',
@@ -81,7 +92,7 @@ export class FrameDecoder {
     }
 
     if (startTime > 0) {
-      args.push('-ss', startTime.toFixed(4));
+      args.push('-ss', startTime.toFixed(6));
     }
 
     args.push('-i', src, '-an', '-fps_mode', 'passthrough');
@@ -106,7 +117,7 @@ export class FrameDecoder {
     this.child = child;
 
     child.stdout?.on('data', (chunk: Buffer) => {
-      this.accumulated = Buffer.concat([this.accumulated, chunk]);
+      this.chunks.push(chunk);
       this.parseFrames();
     });
 
@@ -115,19 +126,28 @@ export class FrameDecoder {
     });
 
     child.on('error', (err: Error) => {
+      this.isExited = true;
+      this.exitError = err;
       this.rejectAll(err);
     });
 
     child.on('close', (code: number | null) => {
+      this.isExited = true;
+      const errorMsg = this.stderrOutput.trim()
+        || `freemotion: ffmpeg process exited with code ${code}.`;
+      this.exitError = new Error(errorMsg);
       if (this.pendingWaiters.size > 0 && !this.isClosed) {
-        const errorMsg = this.stderrOutput.trim()
-          || `freemotion: ffmpeg process exited with code ${code} before requested frames were produced.`;
-        this.rejectAll(new Error(errorMsg));
+        this.rejectAll(this.exitError);
       }
     });
   }
 
   private parseFrames(): void {
+    if (this.chunks.length > 0) {
+      this.accumulated = Buffer.concat([this.accumulated, ...this.chunks]);
+      this.chunks = [];
+    }
+
     const isPng = Boolean(this.options.transparent);
 
     while (this.accumulated.length > 0) {
@@ -136,12 +156,30 @@ export class FrameDecoder {
         if (startIndex === -1) {
           break;
         }
-        const iendIndex = this.accumulated.indexOf(PNG_IEND, startIndex + 8);
-        if (iendIndex === -1) {
-          break;
+
+        let offset = startIndex + 8; // skip 8-byte PNG header
+        let frameEnd = -1;
+
+        while (offset + 8 <= this.accumulated.length) {
+          const chunkLen = this.accumulated.readUInt32BE(offset);
+          const chunkType = this.accumulated.toString('ascii', offset + 4, offset + 8);
+          const totalChunkLen = 12 + chunkLen;
+
+          if (offset + totalChunkLen > this.accumulated.length) {
+            // Incomplete chunk, wait for more data
+            break;
+          }
+
+          if (chunkType === 'IEND') {
+            frameEnd = offset + totalChunkLen;
+            break;
+          }
+
+          offset += totalChunkLen;
         }
-        const frameEnd = iendIndex + 8; // 'IEND' (4 bytes) + CRC (4 bytes)
-        if (this.accumulated.length < frameEnd) {
+
+        if (frameEnd === -1) {
+          // Frame not yet complete
           break;
         }
 
@@ -210,6 +248,12 @@ export class FrameDecoder {
       return Promise.reject(new Error('freemotion: decoder is closed.'));
     }
 
+    if (this.isExited) {
+      return Promise.reject(
+        this.exitError ?? new Error(`freemotion: decoder process exited before frame ${frameIndex}.`),
+      );
+    }
+
     if (frameIndex < this.startFrame) {
       return Promise.reject(
         new Error(`freemotion: frame ${frameIndex} is prior to decoder startFrame ${this.startFrame}.`),
@@ -248,6 +292,7 @@ export class FrameDecoder {
     const child = this.child;
     this.child = null;
     this.accumulated = Buffer.alloc(0);
+    this.chunks = [];
     this.decodedFrames.clear();
 
     if (child && child.exitCode === null) {

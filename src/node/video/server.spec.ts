@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +25,9 @@ describe('startVideoFrameServer', () => {
     publicDir = join(tmpDir, 'public');
     mkdirSync(publicDir, { recursive: true });
 
+    // Non-video file for testing 500 error
+    writeFileSync(join(publicDir, 'corrupt.mp4'), 'this is not a valid video file');
+
     if (hasFfmpeg) {
       const generated = join(tmpDir, 'test.mp4');
       spawnSync('ffmpeg', [
@@ -41,6 +44,7 @@ describe('startVideoFrameServer', () => {
         generated,
       ]);
       copyFileSync(generated, join(publicDir, 'sample.mp4'));
+      copyFileSync(generated, join(publicDir, 'a..b.mp4'));
     }
 
     server = await startVideoFrameServer({ publicDir });
@@ -70,6 +74,11 @@ describe('startVideoFrameServer', () => {
     expect(text).toContain('invalid video path');
   });
 
+  it.runIf(hasFfmpeg)('allows filenames containing double dots like a..b.mp4', async () => {
+    const res = await fetch(`${server.url}/__freemotion/video-frame?src=a..b.mp4&time=0`);
+    expect(res.status).toBe(200);
+  });
+
   it('returns 404 for missing video file', async () => {
     const res = await fetch(`${server.url}/__freemotion/video-frame?src=nonexistent.mp4&time=0`);
     expect(res.status).toBe(404);
@@ -80,6 +89,18 @@ describe('startVideoFrameServer', () => {
   it('returns 404 on unrecognized route', async () => {
     const res = await fetch(`${server.url}/some/other/path`);
     expect(res.status).toBe(404);
+  });
+
+  it.runIf(hasFfmpeg)('returns 500 with useful ffmpeg error message for corrupted files', async () => {
+    const res = await fetch(`${server.url}/__freemotion/video-frame?src=corrupt.mp4&time=0`);
+    expect(res.status).toBe(500);
+    const text = await res.text();
+    expect(text.length).toBeGreaterThan(0);
+  });
+
+  it.runIf(hasFfmpeg)('returns 500 without hanging when requesting beyond video duration', async () => {
+    const res = await fetch(`${server.url}/__freemotion/video-frame?src=sample.mp4&time=999.0`);
+    expect(res.status).toBe(500);
   });
 
   it.runIf(hasFfmpeg)('serves video frames with 200 and proper headers', async () => {
