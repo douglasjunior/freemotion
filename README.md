@@ -291,6 +291,7 @@ Everything is exported from `freemotion`.
 | Export | What it does |
 |---|---|
 | `defineComposition(definition)` | Declares a composition: `id`, `component`, `defaultProps`, `fps`, `width`, `height`, `durationInFrames` and an optional `folder`. |
+| `getEnvironment()` | Execution environment: `{ isStudio, isRendering, isPlayer }`. |
 | `useCurrentFrame()` | The frame being drawn. Relative to the start of the enclosing `<Sequence>`. |
 | `useVideoConfig()` | `{ fps, width, height, durationInFrames }` of the composition. |
 | `interpolate(input, inputRange, outputRange, options?)` | Maps a value between ranges, segment by segment, with `easing` and `extrapolateLeft`/`extrapolateRight` (`'extend'`, `'clamp'`, `'identity'` or `'wrap'`). |
@@ -336,7 +337,7 @@ freemotion keeps the names you already know, so most components move over by cha
 + import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
 ```
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
 
 What's different:
 

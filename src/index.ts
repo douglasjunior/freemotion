@@ -7,6 +7,7 @@ export {
 } from './runtime/composition.js';
 export { cancelRender, continueRender, delayRender, type DelayRenderOptions } from './runtime/delay-render.js';
 export { Easing, type EasingFunction } from './runtime/easing.js';
+export { getEnvironment, type Environment } from './runtime/environment.js';
 export { useCurrentFrame, useVideoConfig, type VideoConfig } from './runtime/frame.js';
 export { Img, type ImgProps } from './runtime/img.js';
 export { interpolate, type ExtrapolateType, type InterpolateOptions } from './runtime/interpolate.js';

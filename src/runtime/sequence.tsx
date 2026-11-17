@@ -33,12 +33,16 @@ export const Sequence = ({ from = 0, durationInFrames = Infinity, layout = 'abso
   if (durationInFrames <= 0) {
     throw new Error(`freemotion: <Sequence${name ? ` name="${name}"` : ''}> needs a positive "durationInFrames".`);
   }
-  const { config, frame } = useFrameState();
+  const { config, frame, offset: parentOffset, frozen: parentFrozen } = useFrameState();
   const local = frame - from;
   if (local < 0 || local >= durationInFrames) {
     return null;
   }
-  const content = <FrameProvider config={config} frame={local}>{children}</FrameProvider>;
+  const content = (
+    <FrameProvider config={config} frame={local} offset={parentOffset + from} frozen={parentFrozen}>
+      {children}
+    </FrameProvider>
+  );
   return layout === 'none' ? content : <AbsoluteFill style={style}>{content}</AbsoluteFill>;
 };
 

@@ -5,11 +5,14 @@ import compositions from 'virtual:freemotion/entry';
 
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
 import { waitForRenderHolds } from '../runtime/delay-render.js';
+import { setEnvironment } from '../runtime/environment.js';
 import { Stage } from '../runtime/stage.js';
 import { RENDER_API_GLOBAL, type CompositionMeta, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
 
 import { SvgRecorder } from './svg-recorder.js';
 
+
+setEnvironment({ isRendering: true, isPlayer: false });
 
 const list = validateCompositions(compositions);
 // React 19 reports render errors instead of throwing them out of flushSync(); keep the last one so

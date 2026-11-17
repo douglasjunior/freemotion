@@ -8,9 +8,11 @@ export type VideoConfig = {
   readonly durationInFrames: number;
 };
 
-type FrameState = {
+export type FrameState = {
   readonly config: VideoConfig;
   readonly frame: number;
+  readonly offset: number;
+  readonly frozen: boolean;
 };
 
 const FrameContext = createContext<FrameState | null>(null);
@@ -28,16 +30,30 @@ export function useCurrentFrame(): number {
   return useFrameState().frame;
 }
 
+/** The absolute frame on the composition timeline, accounting for enclosing Sequence offsets. */
+export function useAbsoluteFrame(): number {
+  const { frame, offset } = useFrameState();
+  return frame + offset;
+}
+
 /** Size, frame rate and duration of the composition being drawn. */
 export function useVideoConfig(): VideoConfig {
   return useFrameState().config;
 }
 
-export const FrameProvider = ({ config, frame, children }: {
+export const FrameProvider = ({
+  config,
+  frame,
+  offset = 0,
+  frozen = false,
+  children,
+}: {
   readonly config: VideoConfig;
   readonly frame: number;
+  readonly offset?: number;
+  readonly frozen?: boolean;
   readonly children: ReactNode;
 }) => {
-  const value = useMemo(() => ({ config, frame }), [config, frame]);
+  const value = useMemo(() => ({ config, frame, offset, frozen }), [config, frame, offset, frozen]);
   return <FrameContext.Provider value={value}>{children}</FrameContext.Provider>;
 };
