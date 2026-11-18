@@ -128,12 +128,26 @@ Under the hood:
 ## 🎬 Studio
 
 ```bash
-npx freemotion studio
+npx freemotion studio [options]
 ```
 
 <p align="center">
   <img src=".github/assets/studio.png" alt="The freemotion studio: a composition picker in the header, the video in the middle and a timeline with play and loop buttons at the bottom." width="800">
 </p>
+
+### CLI Options
+
+| Option | Description |
+|---|---|
+| `--port <number>` | Port to listen on (default: `3000`, the next free one if taken) |
+| `--host <address>` | Address to listen on (`0.0.0.0` exposes it on the network) |
+| `--open` | Open the browser |
+| `--no-open` | Do not open the browser |
+| `--entry <file>` | File that exports the compositions (default: `src/compositions.tsx`) |
+| `--config <file>` | Vite config to merge (default: `vite.config.*` in the project) |
+| `--no-config` | Ignore the project's Vite config |
+
+### Keyboard Shortcuts
 
 | Key | Action |
 |---|---|
@@ -144,6 +158,17 @@ npx freemotion studio
 | <kbd>L</kbd> | Toggle loop |
 
 The URL keeps the composition and the frame (`?composition=Intro&frame=42`), so reloading or sharing a link lands on the same picture. Compositions with a `folder` are grouped in the picker.
+
+### Embedding in an iframe
+
+The studio can be embedded in an `<iframe>` (e.g. preview and review panels on another port):
+- Framing is allowed without `X-Frame-Options` or `frame-ancestors` restrictions.
+- Keyboard shortcuts continue to work inside the iframe once focused (the studio focuses its window on mount, on hover, and on clicking inside the player area).
+- On startup, the CLI prints stable ready lines to stdout:
+  ```text
+  freemotion studio running at http://localhost:3000/
+  Studio ready at http://localhost:3000/
+  ```
 
 ## 📦 Rendering
 

@@ -23,6 +23,6 @@ export async function startStudio({ root, entry, configFile, port = 3000, host, 
   } satisfies InlineConfig));
   await server.listen();
   const url = server.resolvedUrls?.local[0] ?? `http://localhost:${port}/`;
-  log.info(`\n  freemotion studio running at ${url}\n`);
+  log.info(`\n  freemotion studio running at ${url}\n  Studio ready at ${url}\n`);
   return server;
 }

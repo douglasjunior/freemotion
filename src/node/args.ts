@@ -59,6 +59,7 @@ Options
   --port <number>      Port to listen on (default: 3000, the next free one if taken)
   --host <address>     Address to listen on (0.0.0.0 exposes it on the network)
   --open               Open the browser
+  --no-open            Do not open the browser
   --entry <file>       File that exports the compositions (default: src/compositions.tsx)
   --config <file>      Vite config to merge (default: vite.config.* in the project)
   --no-config          Ignore the project's Vite config`,
@@ -175,8 +176,11 @@ export function parseProps(value: string, cwd: string): Record<string, unknown> 
   return props as Record<string, unknown>;
 }
 
-function configFile(values: { config?: string; 'no-config'?: boolean }): string | false | undefined {
-  return values['no-config'] ? false : values.config;
+function configFile(values: { config?: string | boolean; 'no-config'?: boolean }): string | false | undefined {
+  if (values['no-config'] || values.config === false) {
+    return false;
+  }
+  return typeof values.config === 'string' ? values.config : undefined;
 }
 
 export function parseCommand(argv: readonly string[], { cwd, env }: { readonly cwd: string; readonly env: NodeJS.ProcessEnv }): Command {
@@ -205,6 +209,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
     case 'studio': {
       const { values } = parseArgs({
         args,
+        allowNegative: true,
         options: {
           help: { type: 'boolean', short: 'h' },
           port: { type: 'string' },
