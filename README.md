@@ -189,10 +189,31 @@ npx freemotion render --all                      # every composition, to out/
 --no-config                 Ignore the project's Vite config
 --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
 --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
+--progress <mode>           Report machine-readable progress on stdout (json)
 --quiet                     Only print errors
 ```
 
 </details>
+
+### Machine-readable progress (`--progress json`)
+
+When running inside automated tools or dashboards, pass `--progress json` to emit one JSON object per line on `stdout`. Human informational logs and warnings are routed to `stderr`, keeping `stdout` strictly machine-parseable JSON lines (JSONL).
+
+```bash
+npx freemotion render Intro --progress json
+```
+
+Events emitted on `stdout`:
+
+| Event | Meaning |
+|---|---|
+| `{"phase":"bundle","status":"start"|"done"}` | Vite bundle build start and completion |
+| `{"phase":"render","id":"Intro","done":12,"total":60}` | Browser frames captured (~4/s and final) |
+| `{"phase":"encode","id":"Intro","done":10,"total":60}` | Frames delivered to ffmpeg (~4/s and final) |
+| `{"phase":"audio","id":"Intro"}` | Audio track processing |
+| `{"phase":"mux","id":"Intro"}` | Audio and video multiplexing |
+| `{"phase":"done","id":"Intro","output":"out/Intro.mp4","frames":60,"seconds":2.1}` | Composition finished rendering |
+| `{"phase":"error","message":"..."}` | Render failed |
 
 ### Animated SVG
 

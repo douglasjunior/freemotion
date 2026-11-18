@@ -14,6 +14,7 @@ import { assertFfmpeg, ffmpegArgs, formatFromPath, isVideoFormat, resolveFfmpeg,
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
+import { createReporter, type Reporter } from './progress.js';
 import { resolveEntry } from './project.js';
 import { createViteConfig, renderHtmlPlugin } from './vite-config.js';
 
@@ -53,6 +54,7 @@ export type RenderOptions = {
   /** ffmpeg binary. Default: the project's `ffmpeg-static`, else `ffmpeg` on PATH. */
   readonly ffmpeg?: string;
   readonly browserExecutable?: string;
+  readonly progress?: 'json';
   readonly log: Logger;
 };
 
@@ -69,6 +71,7 @@ type Session = {
   readonly baseUrl: string;
   readonly options: RenderOptions;
   readonly ffmpeg: string;
+  readonly reporter: Reporter;
 };
 
 type Tab = {
@@ -126,7 +129,9 @@ async function renderStill(session: Session, job: RenderJob): Promise<RenderResu
   const { meta } = tab;
   const frame = session.options.frame ?? 0;
   checkFrame(meta, frame, '--frame');
-  await writeFile(job.output, await capture(tab, frame));
+  const png = await capture(tab, frame);
+  session.reporter.event({ phase: 'render', id: job.id, done: 1, total: 1 });
+  await writeFile(job.output, png);
   await tab.page.close();
   return { id: job.id, output: job.output, format: 'png', frames: 1, seconds: (Date.now() - startedAt) / 1000 };
 }
@@ -144,7 +149,7 @@ function planFrames(meta: CompositionMeta, options: RenderOptions): { frames: nu
 }
 
 async function renderVideo(session: Session, job: RenderJob, format: VideoFormat): Promise<RenderResult> {
-  const { options } = session;
+  const { options, reporter } = session;
   const startedAt = Date.now();
   const first = await openTab(session, job.id);
   const { meta } = first;
@@ -163,23 +168,28 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   });
   const exited = once(ffmpeg, 'close');
   let written = 0;
-  const progress = setInterval(() => options.log.progress(`${job.id} · ${written}/${frames.length} frames`), 250);
+  let rendered = 0;
 
   try {
     await produceInOrder({
       frames,
       workers: tabs,
       ahead: tabs.length * 4,
-      produce: capture,
+      produce: async (tab, frame) => {
+        const png = await capture(tab, frame);
+        rendered++;
+        reporter.event({ phase: 'render', id: job.id, done: rendered, total: frames.length });
+        return png;
+      },
       consume: async (png) => {
         written++;
+        reporter.event({ phase: 'encode', id: job.id, done: written, total: frames.length });
         if (!ffmpeg.stdin.write(png)) {
           await once(ffmpeg.stdin, 'drain');
         }
       },
     });
   } finally {
-    clearInterval(progress);
     ffmpeg.stdin.end();
   }
   const [code] = await exited;
@@ -196,7 +206,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
  * With `--frame` the file is a still of that frame.
  */
 async function renderSvg(session: Session, job: RenderJob): Promise<RenderResult> {
-  const { options } = session;
+  const { options, reporter } = session;
   const startedAt = Date.now();
   const tab = await openTab(session, job.id);
   const { page, errors, meta } = tab;
@@ -210,32 +220,28 @@ async function renderSvg(session: Session, job: RenderJob): Promise<RenderResult
   }
 
   let recorded = 0;
-  const progress = setInterval(() => options.log.progress(`${job.id} · ${recorded}/${frames.length} frames`), 250);
-  try {
-    await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.beginSvg(), RENDER_API_GLOBAL);
-    for (const frame of frames) {
-      await page.evaluate(
-        ([name, value]) => window[name as typeof RENDER_API_GLOBAL]!.setFrame(value),
-        [RENDER_API_GLOBAL, frame] as const,
-      );
-      if (errors.length > 0) {
-        throw errors[0];
-      }
-      await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.recordSvgFrame(), RENDER_API_GLOBAL);
-      recorded++;
-    }
-    const { svg, warnings } = await page.evaluate(
-      ([name, svgOptions]) => window[name as typeof RENDER_API_GLOBAL]!.finishSvg(svgOptions),
-      [RENDER_API_GLOBAL, { fps, loop: options.loop ?? true }] as const,
+  await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.beginSvg(), RENDER_API_GLOBAL);
+  for (const frame of frames) {
+    await page.evaluate(
+      ([name, value]) => window[name as typeof RENDER_API_GLOBAL]!.setFrame(value),
+      [RENDER_API_GLOBAL, frame] as const,
     );
     if (errors.length > 0) {
       throw errors[0];
     }
-    warnings.forEach(warning => options.log.info(`  ${job.id}: ${warning}`));
-    await writeFile(job.output, svg);
-  } finally {
-    clearInterval(progress);
+    await page.evaluate(name => window[name as typeof RENDER_API_GLOBAL]!.recordSvgFrame(), RENDER_API_GLOBAL);
+    recorded++;
+    reporter.event({ phase: 'render', id: job.id, done: recorded, total: frames.length });
   }
+  const { svg, warnings } = await page.evaluate(
+    ([name, svgOptions]) => window[name as typeof RENDER_API_GLOBAL]!.finishSvg(svgOptions),
+    [RENDER_API_GLOBAL, { fps, loop: options.loop ?? true }] as const,
+  );
+  if (errors.length > 0) {
+    throw errors[0];
+  }
+  warnings.forEach(warning => options.log.info(`  ${job.id}: ${warning}`));
+  await writeFile(job.output, svg);
   await page.close();
   return { id: job.id, output: job.output, format: 'svg', frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
 }
@@ -267,10 +273,12 @@ export function planJobs(options: Pick<RenderOptions, 'compositions' | 'output' 
 /** Builds the project once, then renders each composition with headless Chromium and ffmpeg. */
 export async function render(options: RenderOptions): Promise<RenderResult[]> {
   const { root, log } = options;
+  const reporter = createReporter({ mode: options.progress, log });
   const entry = resolveEntry(root, options.entry);
   const outDir = await mkdtemp(join(tmpdir(), 'freemotion-'));
   const base = await createViteConfig({ root, entry, command: 'build', configFile: options.configFile });
   log.info('Bundling compositions…');
+  reporter.event({ phase: 'bundle', status: 'start' });
   await build(mergeConfig(base, {
     base: '/',
     logLevel: 'warn',
@@ -283,6 +291,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
       rollupOptions: { input: RENDER_ENTRY },
     },
   } satisfies InlineConfig));
+  reporter.event({ phase: 'bundle', status: 'done' });
 
   const server = await preview({
     root,
@@ -296,7 +305,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
 
   try {
     browser = await launchBrowser({ executablePath: options.browserExecutable, log: log.info });
-    const session: Session = { browser, baseUrl: `http://127.0.0.1:${port}/`, options, ffmpeg: resolveFfmpeg(root, options.ffmpeg) };
+    const session: Session = { browser, baseUrl: `http://127.0.0.1:${port}/`, options, ffmpeg: resolveFfmpeg(root, options.ffmpeg), reporter };
     const probe = await browser.newPage();
     await probe.goto(session.baseUrl);
     await probe.waitForFunction(name => name in window, RENDER_API_GLOBAL, { timeout: 60_000 });
@@ -316,6 +325,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
         : job.format === 'svg'
           ? await renderSvg(session, { ...job, output })
           : await renderVideo(session, { ...job, output }, job.format);
+      reporter.event({ phase: 'done', id: result.id, output: job.output, frames: result.frames, seconds: result.seconds });
       log.done(`${result.id} · ${result.frames} ${result.frames === 1 ? 'frame' : 'frames'} in ${result.seconds.toFixed(1)}s → ${job.output}`);
       results.push(result);
     }

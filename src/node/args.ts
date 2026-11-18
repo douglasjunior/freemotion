@@ -64,6 +64,7 @@ Options
   --no-config                 Ignore the project's Vite config
   --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
   --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
+  --progress <mode>           json (one JSON event per line on stdout; logs to stderr)
   --quiet                     Only print errors`,
 };
 
@@ -209,6 +210,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'no-config': { type: 'boolean' },
           ffmpeg: { type: 'string' },
           'browser-executable': { type: 'string' },
+          progress: { type: 'string' },
           quiet: { type: 'boolean' },
         },
       });
@@ -226,6 +228,9 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
       }
       if (values.frame !== undefined && values.frames !== undefined) {
         throw new Error('Use --frame for a still image or --frames for a video range, not both.');
+      }
+      if (values.progress !== undefined && values.progress !== 'json') {
+        throw new Error(`--progress must be json (got "${values.progress}").`);
       }
       return {
         name: 'render',
@@ -248,6 +253,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           concurrency: integer(values.concurrency, '--concurrency', 1) ?? defaultConcurrency(),
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,
           browserExecutable: values['browser-executable'],
+          progress: values.progress as 'json' | undefined,
         },
       };
     }

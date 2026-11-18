@@ -108,4 +108,53 @@ describe('freemotion render', () => {
       expect(stderr).toContain('ffmpeg was not found');
     });
   });
+
+  describe('--progress json', () => {
+    it('outputs strictly machine-parseable JSON lines to stdout with phase: done as the last line', async () => {
+      const output = join(OUT, 'progress-colors.mp4');
+      const { code, stdout, stderr } = await run(['render', 'Colors', '-o', output, '--progress', 'json'], FIXTURE);
+      expect(code).toBe(0);
+
+      const lines = stdout.trim().split('\n').filter(Boolean);
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+
+      const events = lines.map((line) => {
+        expect(() => JSON.parse(line)).not.toThrow();
+        return JSON.parse(line);
+      });
+
+      expect(events[0]).toEqual({ phase: 'bundle', status: 'start' });
+      expect(events[1]).toEqual({ phase: 'bundle', status: 'done' });
+
+      const lastEvent = events[events.length - 1];
+      expect(lastEvent).toMatchObject({
+        phase: 'done',
+        id: 'Colors',
+        output,
+        frames: 10,
+      });
+      expect(typeof lastEvent.seconds).toBe('number');
+
+      // Human logs went to stderr, leaving stdout clean
+      expect(stderr).toContain('Bundling compositions…');
+      expect(stderr).toContain('Colors · 10 frames');
+    });
+
+    it('emits an error event on stdout and exits with code 1 for broken compositions', async () => {
+      const { code, stdout, stderr } = await run(['render', 'Throws', '--entry', 'src/broken.tsx', '--frame', '0', '--progress', 'json'], FIXTURE);
+      expect(code).toBe(1);
+
+      const lines = stdout.trim().split('\n').filter(Boolean);
+      expect(lines.length).toBeGreaterThanOrEqual(1);
+
+      const events = lines.map(line => JSON.parse(line));
+      const lastEvent = events[events.length - 1];
+      expect(lastEvent).toMatchObject({
+        phase: 'error',
+        message: expect.stringContaining('kaboom'),
+      });
+
+      expect(stderr).toContain('kaboom');
+    });
+  });
 });

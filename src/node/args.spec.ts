@@ -69,6 +69,13 @@ describe('parseCommand', () => {
     expect(parse('render', '--all')).toMatchObject({ options: { compositions: 'all' } });
   });
 
+  it('parses --progress json', () => {
+    expect(parse('render', 'Intro', '--progress', 'json')).toMatchObject({
+      name: 'render',
+      options: { progress: 'json' },
+    });
+  });
+
   it.each([
     [['render'], /Which composition/],
     [['render', 'A', '--all'], /not both/],
@@ -78,6 +85,7 @@ describe('parseCommand', () => {
     [['render', 'A', '--scale', '0'], /--scale must be a positive/],
     [['render', 'A', '--concurrency', '0'], /--concurrency must be an integer of at least 1/],
     [['render', 'A', '--every-nth-frame', '0'], /--every-nth-frame must be an integer of at least 1/],
+    [['render', 'A', '--progress', 'invalid'], /--progress must be json/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
   ])('rejects %j', (argv, message) => {
