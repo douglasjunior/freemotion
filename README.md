@@ -187,6 +187,7 @@ npx freemotion render --all                      # every composition, to out/
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
+--no-build-cache            Rebuild compositions instead of using the cached bundle
 --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
 --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
 --quiet                     Only print errors
@@ -219,6 +220,7 @@ What to know:
 - **Derive everything from the frame.** CSS animations, transitions and timers run on the wall clock and won't match between tabs. Use `interpolate()` and `spring()` instead.
 - **Use `random(seed)`** instead of `Math.random()`: the same seed gives the same number in every tab and on every machine.
 - **Wait for async data** with [`delayRender()`](#async-data-delayrender).
+- **Concurrent renders:** freemotion caches bundle builds under `node_modules/.cache/freemotion` across renders. When running concurrent render processes on the same project (e.g. parallel CI workers on one machine), pass `--no-build-cache` to give each process an isolated temporary directory.
 
 ## 🌐 Player
 
