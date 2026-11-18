@@ -6,8 +6,9 @@ import compositions from 'virtual:freemotion/entry';
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
 import { waitForRenderHolds } from '../runtime/delay-render.js';
 import { setEnvironment } from '../runtime/environment.js';
+import { setRenderContext } from '../runtime/render-context.js';
 import { Stage } from '../runtime/stage.js';
-import { RENDER_API_GLOBAL, type CompositionMeta, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
+import { RENDER_API_GLOBAL, type CompositionMeta, type MountOptions, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
 
 import { SvgRecorder } from './svg-recorder.js';
 
@@ -28,11 +29,12 @@ let mounted: { composition: AnyComposition; props: Record<string, unknown> } | n
 const meta = ({ id, fps, width, height, durationInFrames }: AnyComposition): CompositionMeta => ({ id, fps, width, height, durationInFrames });
 const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-function mount(id: string, props: Record<string, unknown> | null): CompositionMeta {
+function mount(id: string, props: Record<string, unknown> | null, options?: MountOptions): CompositionMeta {
   const composition = list.find(item => item.id === id);
   if (!composition) {
     throw new Error(`Unknown composition "${id}". Available: ${list.map(item => item.id).join(', ') || '(none)'}.`);
   }
+  setRenderContext({ videoServerUrl: options?.videoServerUrl });
   mounted = { composition, props: { ...composition.defaultProps, ...props } };
   return meta(composition);
 }

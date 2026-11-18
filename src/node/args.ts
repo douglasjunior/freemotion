@@ -59,6 +59,7 @@ Options
   --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
   --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
   --concurrency <n>           Browser tabs rendering in parallel (default: ${defaultConcurrency()})
+  --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
   --config <file>             Vite config to merge (default: vite.config.* in the project)
   --no-config                 Ignore the project's Vite config
@@ -204,6 +205,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           scale: { type: 'string' },
           crf: { type: 'string' },
           concurrency: { type: 'string' },
+          'video-cache-mb': { type: 'string' },
           entry: { type: 'string' },
           config: { type: 'string' },
           'no-config': { type: 'boolean' },
@@ -246,6 +248,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           scale: positive(values.scale, '--scale') ?? 1,
           crf: values.crf === undefined ? undefined : integer(values.crf, '--crf', 0),
           concurrency: integer(values.concurrency, '--concurrency', 1) ?? defaultConcurrency(),
+          videoCacheMb: integer(values['video-cache-mb'], '--video-cache-mb', 1),
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,
           browserExecutable: values['browser-executable'],
         },

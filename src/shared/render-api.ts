@@ -20,10 +20,15 @@ export type SvgExportResult = {
   readonly warnings: readonly string[];
 };
 
+export type MountOptions = {
+  readonly videoServerUrl?: string;
+  readonly timeoutInMilliseconds?: number;
+};
+
 export type RenderPageApi = {
   readonly compositions: readonly CompositionMeta[];
   /** Selects the composition (props merged over its defaults) for the next `setFrame()` calls. */
-  readonly mount: (id: string, props: Record<string, unknown> | null) => CompositionMeta;
+  readonly mount: (id: string, props: Record<string, unknown> | null, options?: MountOptions) => CompositionMeta;
   /** Draws the frame and resolves once fonts, images, render holds and the paint are done. */
   readonly setFrame: (frame: number) => Promise<void>;
   /** Animated SVG: `beginSvg()` once, `recordSvgFrame()` after each `setFrame()`, then `finishSvg()` builds the file. */

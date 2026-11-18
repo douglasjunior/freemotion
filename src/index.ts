@@ -25,3 +25,4 @@ export { Sequence, Series, type SequenceProps, type SeriesSequenceProps } from '
 export { spring, type SpringConfig, type SpringOptions } from './runtime/spring.js';
 export { Stage, type StageProps } from './runtime/stage.js';
 export { staticFile } from './runtime/static-file.js';
+export { Video, type VideoProps } from './runtime/video.js';

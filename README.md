@@ -184,6 +184,7 @@ npx freemotion render --all                      # every composition, to out/
 --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
+--video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
@@ -301,6 +302,7 @@ Everything is exported from `freemotion`.
 | `<Sequence from durationInFrames layout>` | Shifts time for its children and mounts them only during its window. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
+| `<Video src trimBefore? playbackRate? transparent?>` | Renders a video. In render mode, extracts exact frames from the video frame server. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
 | `random(seed)` | A deterministic number in `[0, 1)` for a seed. |
@@ -337,13 +339,13 @@ freemotion keeps the names you already know, so most components move over by cha
 + import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
 ```
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
 
 What's different:
 
 - **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
 - **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
-- **Not there yet:** audio, `<Video>`/`<OffthreadVideo>`, transparent video, `calculateMetadata()` and cloud rendering.
+- **Not there yet:** audio, transparent video, `calculateMetadata()` and cloud rendering.
 
 freemotion is an independent project written from scratch, and it is not affiliated with Remotion.
 

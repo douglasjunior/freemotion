@@ -15,6 +15,7 @@ import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
 import { resolveEntry } from './project.js';
+import { startVideoFrameServer, type VideoFrameServer } from './video/server.js';
 import { createViteConfig, renderHtmlPlugin } from './vite-config.js';
 
 
@@ -50,6 +51,8 @@ export type RenderOptions = {
   readonly crf?: number;
   /** Device pixel ratio: 2 renders twice the width and height. */
   readonly scale: number;
+  /** Memory limit for decoded video frames in MB. Default: 512. */
+  readonly videoCacheMb?: number;
   /** ffmpeg binary. Default: the project's `ffmpeg-static`, else `ffmpeg` on PATH. */
   readonly ffmpeg?: string;
   readonly browserExecutable?: string;
@@ -69,6 +72,7 @@ type Session = {
   readonly baseUrl: string;
   readonly options: RenderOptions;
   readonly ffmpeg: string;
+  readonly videoServerUrl: string;
 };
 
 type Tab = {
@@ -80,7 +84,8 @@ type Tab = {
   readonly scale: number;
 };
 
-async function openTab({ browser, baseUrl, options }: Session, id: string): Promise<Tab> {
+async function openTab(session: Session, id: string): Promise<Tab> {
+  const { browser, baseUrl, options, videoServerUrl } = session;
   const page = await browser.newPage({ deviceScaleFactor: options.scale });
   const errors: Error[] = [];
   page.on('pageerror', error => errors.push(error));
@@ -89,8 +94,8 @@ async function openTab({ browser, baseUrl, options }: Session, id: string): Prom
     throw errors[0] ?? error;
   });
   const meta = await page.evaluate(
-    ([name, compositionId, props]) => window[name as typeof RENDER_API_GLOBAL]!.mount(compositionId, props),
-    [RENDER_API_GLOBAL, id, options.props ?? null] as const,
+    ([name, compositionId, props, mountOptions]) => window[name as typeof RENDER_API_GLOBAL]!.mount(compositionId, props, mountOptions),
+    [RENDER_API_GLOBAL, id, options.props ?? null, { videoServerUrl }] as const,
   );
   await page.setViewportSize({ width: meta.width, height: meta.height });
   return { page, errors, cdp: await page.context().newCDPSession(page), meta, scale: options.scale };
@@ -293,10 +298,22 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
   });
   const { port } = server.httpServer.address() as AddressInfo;
   let browser: Browser | null = null;
+  let videoServer: VideoFrameServer | null = null;
 
   try {
+    const ffmpeg = resolveFfmpeg(root, options.ffmpeg);
+    const publicDir = typeof base.publicDir === 'string' ? resolve(root, base.publicDir) : join(root, 'public');
+    const cacheBytes = (options.videoCacheMb ?? 512) * 1024 * 1024;
+    videoServer = await startVideoFrameServer({ ffmpeg, publicDir, cacheBytes });
+
     browser = await launchBrowser({ executablePath: options.browserExecutable, log: log.info });
-    const session: Session = { browser, baseUrl: `http://127.0.0.1:${port}/`, options, ffmpeg: resolveFfmpeg(root, options.ffmpeg) };
+    const session: Session = {
+      browser,
+      baseUrl: `http://127.0.0.1:${port}/`,
+      options,
+      ffmpeg,
+      videoServerUrl: videoServer.url,
+    };
     const probe = await browser.newPage();
     await probe.goto(session.baseUrl);
     await probe.waitForFunction(name => name in window, RENDER_API_GLOBAL, { timeout: 60_000 });
@@ -323,6 +340,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
   } finally {
     await browser?.close();
     await server.close();
+    await videoServer?.close();
     await rm(outDir, { recursive: true, force: true });
   }
 }

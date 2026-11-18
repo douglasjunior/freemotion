@@ -46,7 +46,7 @@ describe('parseCommand', () => {
 
   it('parses every render option', () => {
     const command = parseCommand(
-      ['render', 'Intro', '-o', 'intro.gif', '--frames', '10-20', '--every-nth-frame', '2', '--props', '{"title":"Hi"}', '--scale', '2', '--crf', '20', '--concurrency', '3', '--quiet'],
+      ['render', 'Intro', '-o', 'intro.gif', '--frames', '10-20', '--every-nth-frame', '2', '--props', '{"title":"Hi"}', '--scale', '2', '--crf', '20', '--concurrency', '3', '--video-cache-mb', '1024', '--quiet'],
       { cwd: '/project', env: { FREEMOTION_FFMPEG: '/opt/ffmpeg' } },
     );
     expect(command).toMatchObject({
@@ -60,6 +60,7 @@ describe('parseCommand', () => {
         scale: 2,
         crf: 20,
         concurrency: 3,
+        videoCacheMb: 1024,
         ffmpeg: '/opt/ffmpeg',
       },
     });
@@ -78,6 +79,9 @@ describe('parseCommand', () => {
     [['render', 'A', '--scale', '0'], /--scale must be a positive/],
     [['render', 'A', '--concurrency', '0'], /--concurrency must be an integer of at least 1/],
     [['render', 'A', '--every-nth-frame', '0'], /--every-nth-frame must be an integer of at least 1/],
+    [['render', 'A', '--video-cache-mb', '0'], /--video-cache-mb must be an integer of at least 1/],
+    [['render', 'A', '--video-cache-mb=-5'], /--video-cache-mb must be an integer of at least 1/],
+    [['render', 'A', '--video-cache-mb', 'abc'], /--video-cache-mb must be an integer of at least 1/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
   ])('rejects %j', (argv, message) => {
