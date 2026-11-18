@@ -230,6 +230,9 @@ export async function planAudio({
         '-i', `anullsrc=r=${sampleRate}:cl=stereo`,
         '-t', totalDurationSec.toFixed(6),
         '-c:a', 'pcm_s16le',
+        '-ar', String(sampleRate),
+        '-ac', '2',
+        '-f', 'wav',
         finalOutputPath,
       ],
       outputPath: finalOutputPath,
@@ -369,9 +372,9 @@ export async function planAudio({
 
     args.push('-map', mixLabel);
     if (isFinal) {
-      args.push('-c:a', 'pcm_s16le', outputPath);
+      args.push('-c:a', 'pcm_s16le', '-ar', String(sampleRate), '-ac', '2', '-f', 'wav', outputPath);
     } else {
-      args.push('-c:a', 'pcm_f32le', outputPath);
+      args.push('-c:a', 'pcm_f32le', '-ar', String(sampleRate), '-ac', '2', '-f', 'wav', outputPath);
     }
 
     return {
@@ -473,7 +476,7 @@ export async function planAudio({
     combinerArgs.push('-filter_complex', finalFilterComplex);
   }
 
-  combinerArgs.push('-map', '[out_final]', '-c:a', 'pcm_s16le', finalOutputPath);
+  combinerArgs.push('-map', '[out_final]', '-c:a', 'pcm_s16le', '-ar', String(sampleRate), '-ac', '2', '-f', 'wav', finalOutputPath);
 
   passes.push({
     args: combinerArgs,

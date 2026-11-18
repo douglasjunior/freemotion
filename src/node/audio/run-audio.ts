@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { rm, writeFile } from 'node:fs/promises';
+import { rm, stat, writeFile } from 'node:fs/promises';
 
 import type { AudioPlan } from './audio-plan.js';
 
@@ -38,7 +38,8 @@ export async function mixAudio(
     }
 
     // 3. Execute all passes in sequence
-    for (const pass of plan.passes) {
+    for (let passIdx = 0; passIdx < plan.passes.length; passIdx++) {
+      const pass = plan.passes[passIdx]!;
       const fullArgs = ['-hide_banner', '-loglevel', 'error', '-y', ...pass.args];
       await new Promise<void>((resolve, reject) => {
         const proc = spawn(ffmpeg, fullArgs);
@@ -46,12 +47,18 @@ export async function mixAudio(
         proc.stderr?.on('data', (chunk) => {
           stderr += chunk;
         });
-        proc.on('error', reject);
+        proc.on('error', (err) => {
+          reject(
+            new Error(
+              `freemotion: failed to spawn ffmpeg for audio mixing pass ${passIdx + 1}/${plan.passes.length}: ${err.message}`,
+            ),
+          );
+        });
         proc.on('close', (code) => {
           if (code !== 0) {
             reject(
               new Error(
-                `freemotion: ffmpeg audio mixing pass failed with code ${code}: ${stderr.trim()}`,
+                `freemotion: ffmpeg audio mixing pass ${passIdx + 1}/${plan.passes.length} failed with code ${code}: ${stderr.trim()}`,
               ),
             );
           } else {
@@ -59,6 +66,20 @@ export async function mixAudio(
           }
         });
       });
+    }
+
+    if (plan.passes.length > 0) {
+      try {
+        const s = await stat(plan.outputPath);
+        if (s.size === 0) {
+          throw new Error(`freemotion: audio mixing produced an empty file (0 bytes) at "${plan.outputPath}".`);
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new Error(`freemotion: audio mixing failed to produce output file at "${plan.outputPath}".`);
+        }
+        throw err;
+      }
     }
 
     return plan.outputPath;

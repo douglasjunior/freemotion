@@ -163,10 +163,14 @@ function runFfmpeg(ffmpeg: string, args: readonly string[]): Promise<void> {
 }
 
 function resolveAssetSrc(src: string, publicDir: string): string {
-  if (isAbsolute(src) || src.startsWith('http://') || src.startsWith('https://')) {
+  if (src.startsWith('http://') || src.startsWith('https://')) {
     return src;
   }
-  return resolve(publicDir, src);
+  if (isAbsolute(src) && existsSync(src)) {
+    return src;
+  }
+  const cleanPath = src.replace(/^\/+/, '');
+  return resolve(publicDir, cleanPath);
 }
 
 type Tab = {
