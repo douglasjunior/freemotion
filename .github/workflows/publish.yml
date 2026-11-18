@@ -70,6 +70,8 @@ jobs:
       - run: npm pkg set "peerDependencies.freemotion=^${{ steps.version.outputs.version }}" --workspace @freemotion/three
       - run: npm install --package-lock-only
 
+      - run: npm run build
+
       - name: Publish to npm
         # `prepack` builds dist/ before packing.
         run: npm publish --workspaces --include-workspace-root --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
