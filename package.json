@@ -43,7 +43,9 @@
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
-  "bin": "./dist/node/cli.js",
+  "bin": {
+    "freemotion": "./dist/node/cli.js"
+  },
   "files": [
     "dist",
     "!dist/**/*.spec.*",
