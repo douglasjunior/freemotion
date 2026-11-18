@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type SyntheticEvent, type VideoHTMLAttributes } from 'react';
 
 import { getEnvironment } from './environment.js';
-import { useCurrentFrame, useVideoConfig } from './frame.js';
+import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Img } from './img.js';
 import { usePlayback } from './playback.js';
 import { getVideoServerUrl } from './render-context.js';
@@ -65,12 +65,15 @@ export const Video = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const playback = usePlayback();
+  const { frozen, premounting } = useFrameState();
+
+  const isPlaying = playback.playing && !frozen && !premounting;
+  const effectiveMuted = Boolean(muted || playback.muted || !isPlaying || premounting);
 
   const time = sourceTime({ trimBefore, playbackRate, frame, fps });
 
   const rawVolume = typeof volume === 'function' ? volume(frame) : volume;
   const effectiveVolume = Math.min(1, Math.max(0, rawVolume));
-  const effectiveMuted = Boolean(muted || playback.muted || !playback.playing);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingSeekRef = useRef(false);
@@ -88,8 +91,10 @@ export const Video = ({
         if (queuedTargetRef.current !== null) {
           const next = queuedTargetRef.current;
           queuedTargetRef.current = null;
-          pendingSeekRef.current = true;
-          el.currentTime = next;
+          if (Math.abs(el.currentTime - next) >= 0.5 / fps) {
+            pendingSeekRef.current = true;
+            el.currentTime = next;
+          }
         }
       };
 
@@ -106,7 +111,7 @@ export const Video = ({
     return () => {
       el.removeEventListener('seeked', onSeeked);
     };
-  }, []);
+  }, [fps]);
 
   useIsomorphicLayoutEffect(() => {
     const el = videoRef.current;
@@ -117,8 +122,8 @@ export const Video = ({
     el.volume = effectiveVolume;
     el.muted = effectiveMuted;
 
-    const action = planVideoSync({
-      playing: playback.playing,
+    const plan = planVideoSync({
+      playing: isPlaying,
       current: el.currentTime,
       target: time,
       fps,
@@ -126,22 +131,26 @@ export const Video = ({
       paused: el.paused,
     });
 
-    if (action === 'seek') {
-      if (pendingSeekRef.current) {
-        queuedTargetRef.current = time;
-      } else {
-        pendingSeekRef.current = true;
-        el.currentTime = time;
-      }
-    } else if (action === 'play') {
+    if (plan.pause) {
+      el.pause();
+    }
+
+    if (plan.seek) {
+      queuedTargetRef.current = null;
+      pendingSeekRef.current = true;
+      el.currentTime = time;
+    } else if (plan.queueSeek) {
+      queuedTargetRef.current = time;
+    }
+
+    if (plan.play) {
+      queuedTargetRef.current = null;
       el.playbackRate = playbackRate;
       el.play().catch(() => {
         // Autoplay policy: continue muted
       });
-    } else if (action === 'pause') {
-      el.pause();
     }
-  }, [time, playback.playing, playbackRate, effectiveVolume, effectiveMuted, fps]);
+  }, [time, isPlaying, playbackRate, effectiveVolume, effectiveMuted, fps]);
 
   const env = getEnvironment();
   if (env.isRendering) {
@@ -166,6 +175,7 @@ export const Video = ({
   }
 
   const handleVideoError = (event: SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error(`freemotion: <Video src="${src}"> failed to load video element in preview mode.`);
     onError?.(event);
   };
 
@@ -175,6 +185,7 @@ export const Video = ({
       src={src}
       preload="auto"
       playsInline
+      muted={effectiveMuted}
       style={style}
       className={className}
       onError={handleVideoError}

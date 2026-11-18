@@ -306,7 +306,7 @@ Everything is exported from `freemotion`.
 | `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
-| `<Video src trimBefore? playbackRate? transparent?>` | Renders a video. In render mode, extracts exact frames from the video frame server. |
+| `<Video src trimBefore? playbackRate? transparent? volume?>` | Renders a video. In render mode, extracts exact frames from the video frame server. In preview mode, synchronizes an HTML `<video>` element. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
 | `random(seed)` | A deterministic number in `[0, 1)` for a seed. |
@@ -314,6 +314,27 @@ Everything is exported from `freemotion`.
 | `<ScrollPlayer>` / `useScrollFrame(target, durationInFrames, options?)` | Drive a composition with the page scroll or any scrolling element. [See above](#scroll-driven-video). |
 | `scrollProgress(start, size, viewport, range?)` | The scroll math behind them, as a pure function, for custom integrations. |
 | `<Stage config frame>` | Draws one frame at native size. The building block of the player, the studio and the renderer. |
+
+### Video: `<Video>`
+
+`<Video>` embeds video clips into compositions:
+
+```tsx
+import { Video, staticFile } from 'freemotion';
+
+export const Clip = () => (
+  <Video
+    src={staticFile('clip.mp4')}
+    trimBefore={30}
+    playbackRate={1}
+    volume={frame => (frame < 15 ? frame / 15 : 1)}
+  />
+);
+```
+
+- **Dual-mode synchronization**: In preview (Studio and `<Player>`), renders a synchronized HTML `<video>` element with seamless scrub and playback. In render mode (`freemotion render`), requests exact decoded frames from the built-in HTTP frame server, guaranteeing frame-accurate renders without dropped frames.
+- **Volume control**: Accepts a constant number between `0` and `1`, or a dynamic function `(frame: number) => number` for fades, dips, and custom curves.
+- **Transparency**: With `transparent`, the render pipeline extracts RGBA frames (e.g. from ProRes 4444 or VP9 alpha videos). In preview mode, alpha playback depends on browser support: Chromium supports WebM VP9 with alpha; QuickTime ProRes 4444 with alpha is rendered with an opaque background in browsers that do not natively decode ProRes alpha channels.
 
 ### Async data: `delayRender()`
 

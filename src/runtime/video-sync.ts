@@ -1,5 +1,3 @@
-export type VideoSyncAction = 'play' | 'seek' | 'pause' | 'none';
-
 export type PlanVideoSyncOptions = {
   readonly playing: boolean;
   readonly current: number;
@@ -9,12 +7,21 @@ export type PlanVideoSyncOptions = {
   readonly paused?: boolean;
 };
 
+export type VideoSyncPlan = {
+  readonly play: boolean;
+  readonly pause: boolean;
+  readonly seek: boolean;
+  readonly queueSeek: boolean;
+};
+
 /**
- * Plans the next synchronization action for an HTML video element in preview mode.
- * - When a seek is in flight, does not start another ('none').
- * - When playing, checks drift (|current - target|). If drift > 1 frame, seeks.
- *   If paused and drift <= 1 frame, returns 'play'.
- * - When paused, seeks if drift >= 0.5 frame (half-frame threshold). If not paused, returns 'pause'.
+ * Plans the next synchronization actions for an HTML video element in preview mode.
+ * - When playback is running:
+ *   - If the element is paused, schedules a play.
+ *   - If drift exceeds 1 frame, schedules a seek (unless a seek is already pending).
+ * - When stopped/scrubbing:
+ *   - If the element is still playing, schedules a pause.
+ *   - If drift exceeds half a frame, schedules a seek (or queues it if a seek is already pending).
  */
 export function planVideoSync({
   playing,
@@ -23,31 +30,35 @@ export function planVideoSync({
   fps,
   pendingSeek = false,
   paused,
-}: PlanVideoSyncOptions): VideoSyncAction {
-  if (pendingSeek) {
-    return 'none';
-  }
-
+}: PlanVideoSyncOptions): VideoSyncPlan {
   const frameDuration = 1 / fps;
   const drift = Math.abs(current - target);
 
+  let play = false;
+  let pause = false;
+  let seek = false;
+  let queueSeek = false;
+
   if (playing) {
-    if (drift > frameDuration) {
-      return 'seek';
-    }
     if (paused === true) {
-      return 'play';
+      play = true;
     }
-    return 'none';
+    if (drift > frameDuration && !pendingSeek) {
+      seek = true;
+    }
+  } else {
+    if (paused === false) {
+      pause = true;
+    }
+    const halfFrame = 0.5 * frameDuration;
+    if (drift >= halfFrame) {
+      if (pendingSeek) {
+        queueSeek = true;
+      } else {
+        seek = true;
+      }
+    }
   }
 
-  // When paused / scrubbing
-  const halfFrame = 0.5 * frameDuration;
-  if (drift >= halfFrame) {
-    return 'seek';
-  }
-  if (paused === false) {
-    return 'pause';
-  }
-  return 'none';
+  return { play, pause, seek, queueSeek };
 }

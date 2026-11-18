@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetEnvironment, setEnvironment } from './environment.js';
 import { FrameProvider, type VideoConfig } from './frame.js';
@@ -129,5 +129,47 @@ describe('<Video>', () => {
       </FrameProvider>,
     );
     expect(htmlFn).toContain('<video src="test.mp4"');
+  });
+
+  it('renders muted when premounting or muted prop is set', () => {
+    const htmlPremount = renderToStaticMarkup(
+      <FrameProvider config={config} frame={0} premounting>
+        <Video src="test.mp4" />
+      </FrameProvider>,
+    );
+    expect(htmlPremount).toContain('muted');
+
+    const htmlMuted = renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <Video src="test.mp4" muted />
+      </FrameProvider>,
+    );
+    expect(htmlMuted).toContain('muted');
+  });
+
+  it('logs an error with src and calls onError callback on error event', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockReturnValue(undefined);
+    const onError = vi.fn();
+    let capturedOnError: ((e: unknown) => void) | undefined;
+
+    const TestComponent = () => {
+      const v = Video({ src: 'missing.mp4', onError });
+      capturedOnError = v.props.onError;
+      return v;
+    };
+
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <TestComponent />
+      </FrameProvider>,
+    );
+
+    expect(capturedOnError).toBeDefined();
+    capturedOnError?.({} as unknown);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'freemotion: <Video src="missing.mp4"> failed to load video element in preview mode.',
+    );
+    expect(onError).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 });
