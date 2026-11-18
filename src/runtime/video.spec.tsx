@@ -20,15 +20,19 @@ describe('<Video>', () => {
     resetRenderContext();
   });
 
-  it('renders a <video> element outside render mode', () => {
+  it('renders a <video> element outside render mode with preload="auto" and without frame server URL', () => {
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
     const html = renderToStaticMarkup(
       <FrameProvider config={config} frame={0}>
         <Video src="clips/sample.mp4" className="my-video" style={{ opacity: 0.8 }} />
       </FrameProvider>,
     );
     expect(html).toContain('<video src="clips/sample.mp4"');
+    expect(html).toContain('preload="auto"');
+    expect(html.toLowerCase()).toContain('playsinline=""');
     expect(html).toContain('class="my-video"');
     expect(html).toContain('opacity:0.8');
+    expect(html).not.toContain('__freemotion/video-frame');
   });
 
   it('throws in render mode if video server URL is not configured', () => {

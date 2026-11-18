@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { Composition } from './composition.js';
+import { PlaybackProvider } from './playback.js';
 import { Stage } from './stage.js';
 
 
@@ -13,6 +14,10 @@ export type PlayerProps<Props extends object> = {
    * and the player only draws. Leave it out to let the player keep time itself.
    */
   readonly frame?: number;
+  /** Controlled mode: whether the player is currently playing. Used by the studio. */
+  readonly playing?: boolean;
+  /** Whether preview audio is muted. Default `false`. */
+  readonly muted?: boolean;
   /** Uncontrolled mode: start playing on mount. Default `false`. */
   readonly autoPlay?: boolean;
   /** Uncontrolled mode: start over after the last frame. Default `true`. */
@@ -32,6 +37,8 @@ export function Player<Props extends object>({
   composition,
   inputProps,
   frame,
+  playing,
+  muted = false,
   autoPlay = false,
   loop = true,
   playbackRate = 1,
@@ -43,6 +50,7 @@ export function Player<Props extends object>({
   const container = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number | null>(null);
   const [ownFrame, setOwnFrame] = useState(0);
+  const [uncontrolledPlaying, setUncontrolledPlaying] = useState(autoPlay);
   const onFrameChangeRef = useRef(onFrameChange);
 
   useIsomorphicLayoutEffect(() => {
@@ -64,8 +72,10 @@ export function Player<Props extends object>({
   const controlled = frame !== undefined;
   useEffect(() => {
     if (controlled || !autoPlay) {
+      setUncontrolledPlaying(false);
       return;
     }
+    setUncontrolledPlaying(true);
     const startedAt = performance.now();
     let raf = requestAnimationFrame(function tick(now) {
       const elapsed = Math.floor(((now - startedAt) / 1000) * fps * playbackRate);
@@ -74,13 +84,19 @@ export function Player<Props extends object>({
       onFrameChangeRef.current?.(next);
       if (loop || next < durationInFrames - 1) {
         raf = requestAnimationFrame(tick);
+      } else {
+        setUncontrolledPlaying(false);
       }
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      setUncontrolledPlaying(false);
+    };
   }, [controlled, autoPlay, loop, playbackRate, fps, durationInFrames]);
 
   const props = useMemo(() => ({ ...composition.defaultProps, ...inputProps }) as Props, [composition.defaultProps, inputProps]);
   const shown = Math.min(Math.max(0, Math.round(controlled ? frame : ownFrame)), durationInFrames - 1);
+  const isPlaying = playing ?? (controlled ? false : uncontrolledPlaying);
 
   return (
     <div
@@ -98,9 +114,11 @@ export function Player<Props extends object>({
           visibility: scale === null ? 'hidden' : undefined,
         }}
       >
-        <Stage config={composition} frame={shown}>
-          <Component {...props} />
-        </Stage>
+        <PlaybackProvider playing={isPlaying} muted={muted}>
+          <Stage config={composition} frame={shown}>
+            <Component {...props} />
+          </Stage>
+        </PlaybackProvider>
       </div>
     </div>
   );

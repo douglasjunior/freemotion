@@ -1,6 +1,7 @@
 import { Children, Fragment, isValidElement, type CSSProperties, type ReactNode } from 'react';
 
 import { AbsoluteFill } from './absolute-fill.js';
+import { getEnvironment } from './environment.js';
 import { FrameProvider, useFrameState } from './frame.js';
 
 
@@ -9,6 +10,11 @@ export type SequenceProps = {
   readonly from?: number;
   /** How long it stays mounted. Default `Infinity`. */
   readonly durationInFrames?: number;
+  /**
+   * In preview/studio modes, mounts children this many frames before `from` with
+   * frame 0, frozen and hidden, to preload assets (video, audio). Ignored during render.
+   */
+  readonly premountFor?: number;
   /** `'absolute-fill'` (default) wraps the children in an `<AbsoluteFill>`; `'none'` renders them as they are. */
   readonly layout?: 'absolute-fill' | 'none';
   readonly style?: CSSProperties;
@@ -27,7 +33,15 @@ function assertFrames(value: number, what: string, name?: string) {
  * Shifts time for its children: inside it, `useCurrentFrame()` starts at 0 on frame `from`.
  * Outside `[from, from + durationInFrames)` the children are unmounted.
  */
-export const Sequence = ({ from = 0, durationInFrames = Infinity, layout = 'absolute-fill', style, name, children }: SequenceProps) => {
+export const Sequence = ({
+  from = 0,
+  durationInFrames = Infinity,
+  premountFor = 0,
+  layout = 'absolute-fill',
+  style,
+  name,
+  children,
+}: SequenceProps) => {
   assertFrames(from, '"from"', name);
   assertFrames(durationInFrames, '"durationInFrames"', name);
   if (durationInFrames <= 0) {
@@ -35,14 +49,38 @@ export const Sequence = ({ from = 0, durationInFrames = Infinity, layout = 'abso
   }
   const { config, frame, offset: parentOffset, frozen: parentFrozen } = useFrameState();
   const local = frame - from;
-  if (local < 0 || local >= durationInFrames) {
+
+  const isPremounting = !getEnvironment().isRendering
+    && premountFor > 0
+    && local < 0
+    && local >= -premountFor;
+
+  if (!isPremounting && (local < 0 || local >= durationInFrames)) {
     return null;
   }
+
+  const effectiveFrame = isPremounting ? 0 : local;
+  const effectiveFrozen = isPremounting ? true : parentFrozen;
+
   const content = (
-    <FrameProvider config={config} frame={local} offset={parentOffset + from} frozen={parentFrozen}>
+    <FrameProvider
+      config={config}
+      frame={effectiveFrame}
+      offset={parentOffset + from}
+      frozen={effectiveFrozen}
+      premounting={isPremounting}
+    >
       {children}
     </FrameProvider>
   );
+
+  if (isPremounting) {
+    const hiddenStyle: CSSProperties = { ...style, visibility: 'hidden' };
+    return layout === 'none'
+      ? <div style={{ display: 'contents', visibility: 'hidden' }}>{content}</div>
+      : <AbsoluteFill style={hiddenStyle}>{content}</AbsoluteFill>;
+  }
+
   return layout === 'none' ? content : <AbsoluteFill style={style}>{content}</AbsoluteFill>;
 };
 

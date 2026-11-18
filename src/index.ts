@@ -8,9 +8,10 @@ export {
 export { cancelRender, continueRender, delayRender, type DelayRenderOptions } from './runtime/delay-render.js';
 export { Easing, type EasingFunction } from './runtime/easing.js';
 export { getEnvironment, type Environment } from './runtime/environment.js';
-export { useCurrentFrame, useVideoConfig, type VideoConfig } from './runtime/frame.js';
+export { useAbsoluteFrame, useCurrentFrame, usePremounting, useVideoConfig, type VideoConfig } from './runtime/frame.js';
 export { Img, type ImgProps } from './runtime/img.js';
 export { interpolate, type ExtrapolateType, type InterpolateOptions } from './runtime/interpolate.js';
+export { PlaybackProvider, usePlayback, type PlaybackState } from './runtime/playback.js';
 export { Player, type PlayerProps } from './runtime/player.js';
 export { random } from './runtime/random.js';
 export {

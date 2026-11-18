@@ -242,6 +242,8 @@ import { intro } from './compositions';
 | `composition` | `Composition` | | What to play, from `defineComposition()`. |
 | `inputProps` | `Partial<Props>` | | Merged over the composition's `defaultProps`. |
 | `frame` | `number` | | Controlled mode: the frame to draw. Rounded and clamped. |
+| `playing` | `boolean` | | Controlled mode: whether the player is actively playing. |
+| `muted` | `boolean` | `false` | Whether preview audio is muted. |
 | `autoPlay` | `boolean` | `false` | Uncontrolled mode: start playing on mount. |
 | `loop` | `boolean` | `true` | Uncontrolled mode: start over at the end. |
 | `playbackRate` | `number` | `1` | Uncontrolled mode: speed multiplier. |
@@ -294,12 +296,14 @@ Everything is exported from `freemotion`.
 | `defineComposition(definition)` | Declares a composition: `id`, `component`, `defaultProps`, `fps`, `width`, `height`, `durationInFrames` and an optional `folder`. |
 | `getEnvironment()` | Execution environment: `{ isStudio, isRendering, isPlayer }`. |
 | `useCurrentFrame()` | The frame being drawn. Relative to the start of the enclosing `<Sequence>`. |
+| `usePlayback()` | Playback state: `{ playing, muted }`. |
+| `usePremounting()` | Whether the component is mounted early before its window to preload assets. |
 | `useVideoConfig()` | `{ fps, width, height, durationInFrames }` of the composition. |
 | `interpolate(input, inputRange, outputRange, options?)` | Maps a value between ranges, segment by segment, with `easing` and `extrapolateLeft`/`extrapolateRight` (`'extend'`, `'clamp'`, `'identity'` or `'wrap'`). |
 | `spring({ frame, fps, config?, from?, to?, delay? })` | A physical spring from `from` to `to`. `config`: `damping` (10), `mass` (1), `stiffness` (100), `overshootClamping` (false). |
 | `Easing` | `linear`, `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(b)`, `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)` and the modifiers `in`, `out`, `inOut`. |
 | `<AbsoluteFill>` | A full-size, absolutely positioned flex column. The basic layer. |
-| `<Sequence from durationInFrames layout>` | Shifts time for its children and mounts them only during its window. |
+| `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
 | `<Video src trimBefore? playbackRate? transparent?>` | Renders a video. In render mode, extracts exact frames from the video frame server. |
