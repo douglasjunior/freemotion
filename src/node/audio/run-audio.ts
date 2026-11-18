@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { rm, stat, writeFile } from 'node:fs/promises';
+import { open, rm, stat, writeFile } from 'node:fs/promises';
 
 import type { AudioPlan } from './audio-plan.js';
 
@@ -40,9 +40,11 @@ export async function mixAudio(
     // 3. Execute all passes in sequence
     for (let passIdx = 0; passIdx < plan.passes.length; passIdx++) {
       const pass = plan.passes[passIdx]!;
-      const fullArgs = ['-hide_banner', '-loglevel', 'error', '-y', ...pass.args];
+      const fullArgs = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', ...pass.args];
       await new Promise<void>((resolve, reject) => {
-        const proc = spawn(ffmpeg, fullArgs);
+        const proc = spawn(ffmpeg, fullArgs, {
+          stdio: ['ignore', 'ignore', 'pipe'],
+        });
         let stderr = '';
         proc.stderr?.on('data', (chunk) => {
           stderr += chunk;
@@ -71,8 +73,24 @@ export async function mixAudio(
     if (plan.passes.length > 0) {
       try {
         const s = await stat(plan.outputPath);
-        if (s.size === 0) {
-          throw new Error(`freemotion: audio mixing produced an empty file (0 bytes) at "${plan.outputPath}".`);
+        if (s.size < 44) {
+          throw new Error(
+            `freemotion: audio mixing produced an empty or truncated file (${s.size} bytes) at "${plan.outputPath}".`,
+          );
+        }
+        const fd = await open(plan.outputPath, 'r');
+        try {
+          const header = Buffer.alloc(12);
+          await fd.read(header, 0, 12, 0);
+          const magicRiff = header.toString('utf8', 0, 4);
+          const magicWave = header.toString('utf8', 8, 12);
+          if (magicRiff !== 'RIFF' || magicWave !== 'WAVE') {
+            throw new Error(
+              `freemotion: audio mixing produced an invalid WAV header (expected RIFF...WAVE, got ${magicRiff}...${magicWave}) at "${plan.outputPath}".`,
+            );
+          }
+        } finally {
+          await fd.close();
         }
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {

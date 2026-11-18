@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { AudioAsset } from '../../shared/render-api.js';
 
-import { planAudio } from './audio-plan.js';
+import { planAudio, type AudioPlan } from './audio-plan.js';
 import { probeAudioMedia } from './probe.js';
 import { mixAudio } from './run-audio.js';
 
@@ -480,5 +480,23 @@ describe.runIf(hasFfmpeg)('run-audio (ffmpeg integration)', () => {
     expect(pcm.length).toBeCloseTo((100 / 30) * 48000, -3);
     const mixedRms = computeRms(pcm, 20000, 80000);
     expect(mixedRms).toBeGreaterThan(0.01);
+  });
+
+  it('rejects output files missing valid RIFF and WAVE magic headers', async () => {
+    const rawOutput = join(testDir, 'not_a_wav.wav');
+    const invalidPlan: AudioPlan = {
+      passes: [
+        {
+          args: ['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', '0.01', '-f', 'u8', rawOutput],
+          outputPath: rawOutput,
+        },
+      ],
+      envelopeFiles: [],
+      outputPath: rawOutput,
+      duration: 0.01,
+      warnings: [],
+    };
+
+    await expect(mixAudio(invalidPlan)).rejects.toThrow(/invalid WAV header/);
   });
 });

@@ -162,11 +162,11 @@ function runFfmpeg(ffmpeg: string, args: readonly string[]): Promise<void> {
   });
 }
 
-function resolveAssetSrc(src: string, publicDir: string): string {
+export function resolveAssetSrc(src: string, publicDir: string): string {
   if (src.startsWith('http://') || src.startsWith('https://')) {
     return src;
   }
-  if (isAbsolute(src) && existsSync(src)) {
+  if (isAbsolute(src)) {
     return src;
   }
   const cleanPath = src.replace(/^\/+/, '');
@@ -479,6 +479,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
       reporter.event({ phase: 'mux', id: job.id });
       await runFfmpeg(session.ffmpeg, [
         '-i', videoOutput,
+        '-f', 'wav',
         '-i', mixedAudioPath,
         '-c:v', 'copy',
         ...audioArgs,
