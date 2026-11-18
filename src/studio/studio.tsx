@@ -132,6 +132,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
   const [frame, setFrame] = useState(initial.frame);
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(true);
+  const [muted, setMuted] = useState(false);
   const folders = useMemo(() => [...new Set(compositions.map(item => item.folder ?? ''))], [compositions]);
 
   const frameRef = useRef(frame);
@@ -202,6 +203,9 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
           case 'toggle-loop':
             setLoop(value => !value);
             break;
+          case 'toggle-mute':
+            setMuted(value => !value);
+            break;
         }
       }
     };
@@ -258,7 +262,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         {current && fit > 0 && (
           <div style={{ width: fit, boxShadow: '0 24px 70px rgba(0, 0, 0, 0.55)', borderRadius: 4, overflow: 'hidden' }}>
             <ErrorBoundary key={current.id}>
-              <Player composition={current} frame={frame} playing={playing} />
+              <Player composition={current} frame={frame} playing={playing} muted={muted} />
             </ErrorBoundary>
           </div>
         )}
@@ -275,6 +279,11 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
             <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 7V6a2 2 0 0 1 2-2h8m-2-2 2 2-2 2M13 9v1a2 2 0 0 1-2 2H3m2 2-2-2 2-2" />
             </svg>
+          </IconButton>
+          <IconButton label={muted ? 'Unmute (M)' : 'Mute (M)'} active={muted} onClick={() => setMuted(value => !value)}>
+            {muted
+              ? <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 3.5 7H1v2h2.5L7 12V4zM15 6l-6 6m0-6 6 6" /></svg>
+              : <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 3.5 7H1v2h2.5L7 12V4zM11 5a4.5 4.5 0 0 1 0 6M13 3a7.5 7.5 0 0 1 0 10" /></svg>}
           </IconButton>
           <input
             type="range"

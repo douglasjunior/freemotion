@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { registerAudio } from './audio-registry.js';
+import { evaluateAudioVolume, planAudioSync } from './audio-sync.js';
 import { getEnvironment } from './environment.js';
-import { useFrameState } from './frame.js';
+import { useFrameState, useVideoConfig } from './frame.js';
+import { usePlayback } from './playback.js';
 
 
 export type AudioProps = {
@@ -36,6 +38,8 @@ export const Audio = ({
   }
 
   const { frame, offset, frozen, premounting } = useFrameState();
+  const { fps } = useVideoConfig();
+  const playback = usePlayback();
   const env = getEnvironment();
 
   const registrationRef = useRef<{
@@ -45,6 +49,8 @@ export const Audio = ({
     lastRenderedFrame: null,
     ordinal: null,
   });
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // In render mode, registers the audio track and per-frame volume envelope once per commit
   useIsomorphicLayoutEffect(() => {
@@ -72,6 +78,81 @@ export const Audio = ({
 
     registrationRef.current.lastRenderedFrame = absoluteFrame;
     registrationRef.current.ordinal = asset.ordinal;
+  });
+
+  // In preview mode, imperatively manage HTMLAudioElement lifecycle
+  useIsomorphicLayoutEffect(() => {
+    if (typeof document === 'undefined' || env.isRendering) {
+      return;
+    }
+    const el = document.createElement('audio');
+    el.preload = 'auto';
+    el.src = src;
+    audioRef.current = el;
+
+    return () => {
+      el.pause?.();
+      el.removeAttribute('src');
+      el.load?.();
+      audioRef.current = null;
+    };
+  }, [src, env.isRendering]);
+
+  // In preview mode, synchronize audio playback, volume and muted state on each frame render
+  useIsomorphicLayoutEffect(() => {
+    if (env.isRendering) {
+      return;
+    }
+    const el = audioRef.current;
+    if (!el) {
+      return;
+    }
+
+    el.loop = loop;
+    el.playbackRate = playbackRate;
+    const effectiveVolume = evaluateAudioVolume(volume, frame);
+    const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : undefined;
+
+    const plan = planAudioSync({
+      playing: playback.playing,
+      current: el.currentTime,
+      frame,
+      fps,
+      trimBefore,
+      trimAfter,
+      playbackRate,
+      loop,
+      duration,
+      frozen,
+      premounting,
+      paused: el.paused,
+    });
+
+    if (plan.pause) {
+      el.pause?.();
+    }
+
+    if (plan.seek) {
+      try {
+        el.currentTime = plan.target;
+      } catch {
+        // Ignore seek error if element is unready
+      }
+    }
+
+    if (plan.play) {
+      el.playbackRate = playbackRate;
+      el.play?.()?.catch(() => {
+        // Autoplay policy: continue silently
+      });
+    }
+
+    try {
+      el.volume = effectiveVolume;
+      el.muted = Boolean(muted || playback.muted || plan.silent);
+    } catch {
+      // Ignore volume assignment issues in non-standard environments
+    }
   });
 
   return null;

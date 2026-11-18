@@ -156,6 +156,7 @@ npx freemotion studio [options]
 | <kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> | One second back / forward |
 | <kbd>Home</kbd> <kbd>End</kbd> | First / last frame |
 | <kbd>L</kbd> | Toggle loop |
+| <kbd>M</kbd> | Toggle mute |
 
 The URL keeps the composition and the frame (`?composition=Intro&frame=42`), so reloading or sharing a link lands on the same picture. Compositions with a `folder` are grouped in the picker.
 
@@ -164,6 +165,7 @@ The URL keeps the composition and the frame (`?composition=Intro&frame=42`), so 
 The studio can be embedded in an `<iframe>` (e.g. preview and review panels on another port):
 - Framing is allowed without `X-Frame-Options` or `frame-ancestors` restrictions.
 - Keyboard shortcuts continue to work inside the iframe once focused (the studio focuses its window on mount, on hover, and on clicking inside the player area).
+- Embedding the studio in an `<iframe>` on a different origin requires `allow="autoplay"` on the `<iframe>` element for preview audio playback.
 - On startup, the CLI prints stable ready lines to stdout:
   ```text
   freemotion studio running at http://localhost:3000/
@@ -440,6 +442,7 @@ export const Soundtrack = () => (
 ```
 
 - **Render pipeline**: In render mode, `<Audio>` registers audio assets and records their volume envelope across frames. The Node CLI collects and mixes all audio tracks via FFmpeg.
+- **Preview playback**: In the Studio and `<Player>`, `<Audio>` imperatively synchronizes an HTML5 audio element with playback. Scrubbing is silent, and volume values above 1 saturate at 1.0 during preview due to browser `HTMLMediaElement` volume limits (full gain is applied during render mixing).
 - **Volume control**: Can be a fixed number or a dynamic function `(frame: number) => number` evaluated against the component's local frame.
 - **Nested sequences**: Automatically tracks offsets across nested `<Sequence>` components.
 
