@@ -1,17 +1,101 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 
 export const REPO = fileURLToPath(new URL('..', import.meta.url));
 export const CLI = fileURLToPath(new URL('../dist/node/cli.js', import.meta.url));
 export const FIXTURE = fileURLToPath(new URL('./fixtures/basic', import.meta.url));
+export const SKILL_CLIPS_DIR = join(FIXTURE, 'public', 'skill');
+
+export function ensureSkillClips(): void {
+  mkdirSync(SKILL_CLIPS_DIR, { recursive: true });
+  const shot1 = join(SKILL_CLIPS_DIR, 'shot1.mp4');
+  const shot2 = join(SKILL_CLIPS_DIR, 'shot2.mp4');
+  const shot3 = join(SKILL_CLIPS_DIR, 'shot3.mp4');
+  const nar1 = join(SKILL_CLIPS_DIR, 'narration1.wav');
+  const nar2 = join(SKILL_CLIPS_DIR, 'narration2.wav');
+  const nar3 = join(SKILL_CLIPS_DIR, 'narration3.wav');
+  const sfx = join(SKILL_CLIPS_DIR, 'sfx.wav');
+  const music = join(SKILL_CLIPS_DIR, 'music.wav');
+
+  if (!existsSync(shot1)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
+      '-vf', 'geq=r=\'mod(N*19\\,256)\':g=\'mod(N*37\\,256)\':b=\'mod(N*59\\,256)\'',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      shot1,
+    ]);
+  }
+  if (!existsSync(shot2)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
+      '-vf', 'geq=r=\'mod(N*23\\,256)\':g=\'mod(N*41\\,256)\':b=\'mod(N*61\\,256)\'',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      shot2,
+    ]);
+  }
+  if (!existsSync(shot3)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
+      '-vf', 'geq=r=\'mod(N*29\\,256)\':g=\'mod(N*43\\,256)\':b=\'mod(N*67\\,256)\'',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      shot3,
+    ]);
+  }
+  if (!existsSync(nar1)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=2',
+      '-af', 'volume=8', '-c:a', 'pcm_s16le',
+      nar1,
+    ]);
+  }
+  if (!existsSync(nar2)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'sine=frequency=1500:duration=2',
+      '-af', 'volume=8', '-c:a', 'pcm_s16le',
+      nar2,
+    ]);
+  }
+  if (!existsSync(nar3)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'sine=frequency=2000:duration=2',
+      '-af', 'volume=8', '-c:a', 'pcm_s16le',
+      nar3,
+    ]);
+  }
+  if (!existsSync(sfx)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'sine=frequency=800:duration=1',
+      '-af', 'volume=8', '-c:a', 'pcm_s16le',
+      sfx,
+    ]);
+  }
+  if (!existsSync(music)) {
+    spawnSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
+      '-af', 'volume=8', '-c:a', 'pcm_s16le',
+      music,
+    ]);
+  }
+}
 
 export type RunResult = { code: number | null; stdout: string; stderr: string };
 
 /** Runs the built CLI to completion. */
 export function run(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
+  if (cwd === FIXTURE) {
+    ensureSkillClips();
+  }
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, FORCE_COLOR: '0', ...env } });
     let stdout = '';

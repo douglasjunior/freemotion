@@ -158,7 +158,7 @@ describe('freemotion render', () => {
     it('lists the compositions when the id is unknown', async () => {
       const { code, stderr } = await run(['render', 'Nope'], FIXTURE);
       expect(code).toBe(1);
-      expect(stderr).toContain('Unknown composition: Nope. Available: Colors, Props, Held, Asset.');
+      expect(stderr).toContain('Unknown composition: Nope. Available: Colors, Props, Held, Asset, ShotMix.');
     });
 
     it('reports errors thrown by a composition', async () => {
