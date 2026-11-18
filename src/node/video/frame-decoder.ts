@@ -125,10 +125,21 @@ export class FrameDecoder {
       this.stderrOutput += chunk.toString('utf-8');
     });
 
-    child.on('error', (err: Error) => {
+    child.on('error', (err: NodeJS.ErrnoException) => {
       this.isExited = true;
-      this.exitError = err;
-      this.rejectAll(err);
+      const formattedErr = err.code === 'ENOENT'
+        ? new Error([
+          `ffmpeg was not found ("${ffmpeg}"). freemotion needs it to decode videos. Either:`,
+          '  add it to the project:  npm install ffmpeg-static  (with pnpm, also run: pnpm approve-builds)',
+          '  or install it system-wide:',
+          '    macOS:   brew install ffmpeg',
+          '    Ubuntu:  sudo apt install ffmpeg',
+          '    Windows: winget install ffmpeg',
+          'or point to a binary with --ffmpeg <path> or the FREEMOTION_FFMPEG environment variable.',
+        ].join('\n'))
+        : err;
+      this.exitError = formattedErr;
+      this.rejectAll(formattedErr);
     });
 
     child.on('close', (code: number | null) => {

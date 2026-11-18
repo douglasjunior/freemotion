@@ -116,7 +116,21 @@ export async function probeMedia(filePath: string, ffmpeg = 'ffmpeg'): Promise<M
     const chunks: Buffer[] = [];
 
     child.stderr.on('data', (chunk: Buffer) => chunks.push(chunk));
-    child.on('error', reject);
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') {
+        reject(new Error([
+          `ffmpeg was not found ("${ffmpeg}"). freemotion needs it to decode videos. Either:`,
+          '  add it to the project:  npm install ffmpeg-static  (with pnpm, also run: pnpm approve-builds)',
+          '  or install it system-wide:',
+          '    macOS:   brew install ffmpeg',
+          '    Ubuntu:  sudo apt install ffmpeg',
+          '    Windows: winget install ffmpeg',
+          'or point to a binary with --ffmpeg <path> or the FREEMOTION_FFMPEG environment variable.',
+        ].join('\n')));
+      } else {
+        reject(error);
+      }
+    });
     child.on('close', () => {
       resolve(Buffer.concat(chunks).toString('utf-8'));
     });

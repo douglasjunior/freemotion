@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -12,13 +12,34 @@ const TEST_MP4 = join(CLIPS_DIR, 'test.mp4');
 const RED = [255, 0, 0];
 const BLUE = [0, 0, 255];
 
+function pixelAt(file: string, frame: number, x: number, y: number): [number, number, number] {
+  const { width } = probe(file);
+  const raw = execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-i',
+    file,
+    '-vf',
+    `select=eq(n\\,${frame})`,
+    '-frames:v',
+    '1',
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgb24',
+    '-',
+  ], { maxBuffer: 64 * 1024 * 1024 });
+  const offset = (y * width + x) * 3;
+  return [raw[offset]!, raw[offset + 1]!, raw[offset + 2]!];
+}
+
 describe('<Video> render mode e2e', () => {
   beforeAll(() => {
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(CLIPS_DIR, { recursive: true });
 
     if (!existsSync(TEST_MP4)) {
-      spawnSync('ffmpeg', [
+      const result = spawnSync('ffmpeg', [
         '-hide_banner',
         '-loglevel',
         'error',
@@ -36,7 +57,11 @@ describe('<Video> render mode e2e', () => {
         '-pix_fmt',
         'yuv420p',
         TEST_MP4,
-      ]);
+      ], { encoding: 'utf8' });
+
+      if (result.status !== 0) {
+        throw new Error(`Failed to generate test fixture clip with ffmpeg (code ${result.status}): ${result.stderr || result.error?.message}`);
+      }
     }
   });
 
@@ -81,17 +106,27 @@ describe('<Video> render mode e2e', () => {
 
     const stream = probe(output);
     expect(stream.nb_read_frames).toBe('10');
+
+    // Left half (x=16) and right half (x=48) are both red on frame 5
+    expectColor(pixelAt(output, 5, 16, 32), RED, 6);
+    expectColor(pixelAt(output, 5, 48, 32), RED, 6);
   });
 
   it('fails with a clear error without empty frame when clip is missing', async () => {
-    const { code, stderr } = await run(['render', 'MissingClip', '--entry', 'src/video.tsx'], FIXTURE);
+    const output = join(OUT, 'MissingClip.mp4');
+    const { code, stderr } = await run(['render', 'MissingClip', '--entry', 'src/video.tsx', '-o', output], FIXTURE);
     expect(code).toBe(1);
     expect(stderr).toContain('<Video src="/clips/missing-clip-never-exists.mp4"> failed to load');
+    expect(stderr).toContain('video file not found');
+    expect(existsSync(output)).toBe(false);
   });
 
-  it('accepts --video-cache-mb flag', async () => {
+  it('accepts --video-cache-mb flag and renders correctly with minimum cache', async () => {
     const output = join(OUT, 'cached.mp4');
-    const { code } = await run(['render', 'SingleVideo', '--entry', 'src/video.tsx', '--video-cache-mb', '256', '-o', output], FIXTURE);
+    const { code } = await run(['render', 'SingleVideo', '--entry', 'src/video.tsx', '--video-cache-mb', '1', '-o', output], FIXTURE);
     expect(code).toBe(0);
+    expect(probe(output).nb_read_frames).toBe('30');
+    expectColor(centerPixel(output, 5), RED, 6);
+    expectColor(centerPixel(output, 25), BLUE, 6);
   });
 });

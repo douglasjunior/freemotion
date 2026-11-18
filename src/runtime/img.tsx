@@ -17,12 +17,28 @@ export const Img = ({ src, label, ...props }: ImgProps) => {
     if (!img || (img.complete && img.naturalWidth > 0)) {
       return;
     }
+    let cancelled = false;
     const handle = delayRender(label ?? `Loading <Img src="${src}">`);
     const onLoad = () => continueRender(handle);
-    const onError = () => cancelRender(new Error(label ? `freemotion: ${label} failed to load "${src}".` : `freemotion: <Img> failed to load "${src}".`));
+    const onError = async () => {
+      let detail = '';
+      try {
+        const response = await fetch(src);
+        if (!response.ok) {
+          detail = (await response.text()).trim();
+        }
+      } catch {
+        // Fall back to default error message if fetch fails
+      }
+      if (!cancelled) {
+        const detailSuffix = detail ? `: ${detail}` : '.';
+        cancelRender(new Error(label ? `freemotion: ${label} failed to load "${src}"${detailSuffix}` : `freemotion: <Img> failed to load "${src}"${detailSuffix}`));
+      }
+    };
     img.addEventListener('load', onLoad);
     img.addEventListener('error', onError);
     return () => {
+      cancelled = true;
       img.removeEventListener('load', onLoad);
       img.removeEventListener('error', onError);
       continueRender(handle);

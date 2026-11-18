@@ -7,12 +7,12 @@ import { getVideoServerUrl } from './render-context.js';
 import { sourceTime } from './video-math.js';
 
 
-export type VideoProps = VideoHTMLAttributes<HTMLVideoElement> & {
+export type VideoProps = Omit<VideoHTMLAttributes<HTMLVideoElement>, 'volume'> & {
   readonly src: string;
   readonly trimBefore?: number;
   readonly playbackRate?: number;
   readonly transparent?: boolean;
-  readonly volume?: number;
+  readonly volume?: number | ((frame: number) => number);
 };
 
 const VIDEO_ONLY_PROPS = new Set([

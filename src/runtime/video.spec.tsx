@@ -110,4 +110,20 @@ describe('<Video>', () => {
     expect(html).not.toContain('controls');
     expect(html).not.toContain('loop');
   });
+
+  it('accepts volume as a number or a function of the frame', () => {
+    const htmlNumber = renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <Video src="test.mp4" volume={0.5} />
+      </FrameProvider>,
+    );
+    expect(htmlNumber).toContain('<video src="test.mp4"');
+
+    const htmlFn = renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <Video src="test.mp4" volume={f => (f > 10 ? 1 : 0)} />
+      </FrameProvider>,
+    );
+    expect(htmlFn).toContain('<video src="test.mp4"');
+  });
 });
