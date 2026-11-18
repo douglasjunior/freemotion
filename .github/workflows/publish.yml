@@ -1,7 +1,7 @@
 # Publishes the package to npm whenever a GitHub release is published.
 #
 # The version comes from the release tag (`1.2.3` or `v1.2.3`), is written to
-# package.json / package-lock.json before `npm publish`, and then committed back
+# the packages' package.json files before `pnpm publish`, and then committed back
 # to the default branch so the repository matches what is on npm.
 #
 # Authentication uses npm Trusted Publishing (OIDC), so no token is stored in
@@ -45,10 +45,11 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
           registry-url: https://registry.npmjs.org
 
       - name: Read the version from the release tag
@@ -63,18 +64,20 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - name: Set the version in package.json
-        run: npm version "${{ steps.version.outputs.version }}" --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
-      - run: npm pkg set "peerDependencies.freemotion=^${{ steps.version.outputs.version }}" --workspace @freemotion/three
-      - run: npm install --package-lock-only
+      - name: Set the version in the packages
+        run: |
+          for dir in . packages/freemotion packages/three; do
+            npm pkg set "version=${{ steps.version.outputs.version }}" --prefix "$dir"
+          done
+          npm pkg set "peerDependencies.freemotion=^${{ steps.version.outputs.version }}" --prefix packages/three
 
-      - run: npm run build
+      - run: pnpm build
 
       - name: Publish to npm
-        # `prepack` builds dist/ before packing.
-        run: npm publish --workspaces --include-workspace-root --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
+        # `prepack` builds dist/ before packing. pnpm turns `workspace:*` into the real version.
+        run: pnpm --filter freemotion --filter @freemotion/three publish --no-git-checks --access public --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
 
       - name: Read the App's bot user id
         id: bot
@@ -90,13 +93,14 @@ jobs:
         run: |
           git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
           git config user.email "${{ steps.bot.outputs.id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-          git checkout -- package.json package-lock.json packages/three/package.json
+          git checkout -- package.json packages/freemotion/package.json packages/three/package.json
           git fetch origin "$BRANCH"
           git checkout -B "$BRANCH" "origin/$BRANCH"
-          npm version "$VERSION" --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
-          npm pkg set "peerDependencies.freemotion=^$VERSION" --workspace @freemotion/three
-          npm install --package-lock-only
-          git add package.json package-lock.json packages/three/package.json
+          for dir in . packages/freemotion packages/three; do
+            npm pkg set "version=$VERSION" --prefix "$dir"
+          done
+          npm pkg set "peerDependencies.freemotion=^$VERSION" --prefix packages/three
+          git add package.json packages/freemotion/package.json packages/three/package.json
           if git diff --cached --quiet; then
             echo "package.json on $BRANCH is already at $VERSION."
           else

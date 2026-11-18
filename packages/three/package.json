@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "ts": "tsc --noEmit",
-    "prepack": "npm run build"
+    "test": "vitest run",
+    "prepack": "pnpm run build"
   },
   "peerDependencies": {
     "freemotion": "^0.1.1",
@@ -28,9 +29,15 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "freemotion": "file:../..",
+    "freemotion": "workspace:*",
     "three": "^0.180.0",
     "@types/three": "^0.180.0",
-    "@react-three/fiber": "^9.0.0"
+    "@react-three/fiber": "^9.0.0",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-test-renderer": "^19.3.1",
+    "@types/react-test-renderer": "^19.3.1",
+    "vitest": "^5.0.5"
   }
 }

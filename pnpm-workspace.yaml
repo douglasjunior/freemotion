@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - ffmpeg-static
+
+# freemotion's e2e fixture uses @freemotion/three, which in turn depends on freemotion.
+ignoreWorkspaceCycles: true

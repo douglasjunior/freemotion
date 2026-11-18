@@ -11,14 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run ts
-      - run: npm test
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm ts
+      - run: pnpm test
 
   e2e:
     name: End-to-end (${{ matrix.os }})
@@ -29,14 +30,15 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Install ffmpeg
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update && sudo apt-get install -y ffmpeg; else brew install ffmpeg; fi
       - name: Install Chromium headless shell
-        run: npx playwright-core install --with-deps chromium-headless-shell
-      - run: npm run test:e2e
+        run: pnpm --filter freemotion exec playwright-core install --with-deps chromium-headless-shell
+      - run: pnpm test:e2e

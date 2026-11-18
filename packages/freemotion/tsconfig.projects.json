@@ -13,7 +13,7 @@
     "types": [],
     "paths": {
       "freemotion": ["./src/index.ts"],
-      "@freemotion/three": ["./packages/three/src/index.ts"]
+      "@freemotion/three": ["../three/src/index.ts"]
     }
   },
   "include": ["templates", "test/fixtures"]

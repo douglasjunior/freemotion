@@ -1,0 +1,90 @@
+{
+  "name": "freemotion",
+  "version": "0.1.1",
+  "description": "Make videos with React. Frame-driven animations, a live studio and an MP4 renderer, all MIT.",
+  "keywords": [
+    "react",
+    "video",
+    "animation",
+    "motion",
+    "mp4",
+    "gif",
+    "svg",
+    "ffmpeg",
+    "vite",
+    "programmatic-video",
+    "scrollytelling"
+  ],
+  "author": {
+    "name": "Douglas Nassif Roma Junior",
+    "email": "nassifrroma@gmail.com",
+    "url": "https://github.com/douglasjunior"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/douglasjunior/freemotion.git"
+  },
+  "bugs": {
+    "url": "https://github.com/douglasjunior/freemotion/issues"
+  },
+  "homepage": "https://github.com/douglasjunior/freemotion",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "freemotion": "./dist/node/cli.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.spec.*",
+    "templates"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js",
+    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm run build && vitest run --config ./vitest.config.e2e.ts",
+    "prepack": "pnpm run build && cp ../../README.md README.md",
+    "postpack": "rm -f README.md"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "playwright-core": "^1.64.1",
+    "vite": "^8.3.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@freemotion/three": "workspace:*",
+    "@react-three/fiber": "^9.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/react-test-renderer": "^19.3.1",
+    "@types/three": "^0.180.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-test-renderer": "^19.3.1",
+    "three": "^0.180.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

@@ -14,13 +14,13 @@ export default defineConfig([
     '**/coverage/',
     '**/out/',
     '**/.eslintcache/',
-    'test/.tmp/',
+    '**/test/.tmp/',
   ]),
   {
     settings: {
       'import/resolver': {
         typescript: {
-          project: ['./tsconfig.json', './tsconfig.projects.json', './packages/*/tsconfig.json'],
+          project: ['./packages/*/tsconfig.json', './packages/freemotion/tsconfig.projects.json'],
           noWarnOnMultipleProjects: true,
         },
       },

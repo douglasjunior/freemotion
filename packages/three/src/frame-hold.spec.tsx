@@ -2,9 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { vi } from 'vitest';
 
-import { pendingRenderHolds, resetRenderHolds } from '../../../src/runtime/delay-render.js';
-import { resetEnvironment, setEnvironment } from '../../../src/runtime/environment.js';
-import { FrameProvider } from '../../../src/runtime/frame.js';
+import { pendingRenderHolds, resetRenderHolds } from '../../freemotion/src/runtime/delay-render.js';
+import { resetEnvironment, setEnvironment } from '../../freemotion/src/runtime/environment.js';
+import { FrameProvider } from '../../freemotion/src/runtime/frame.js';
 
 import { ThreeCanvas } from './three-canvas.js';
 

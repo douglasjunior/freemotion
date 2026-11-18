@@ -8,8 +8,10 @@ Everything in the repository is written in **English**: source code, identifiers
 
 ## Repository Structure
 
+The repository is a pnpm monorepo. The root is private (shared ESLint config, `tsconfig.base.json`, CI); the published `freemotion` package lives in `packages/freemotion/`, and every path below is relative to it except `packages/three/`, which is a sibling package.
+
 ```text
-freemotion/
+packages/freemotion/
 ├── src/
 │   ├── index.ts              # Public runtime API (what `import 'freemotion'` gives)
 │   ├── runtime/              # Browser code imported by compositions
@@ -42,12 +44,13 @@ freemotion/
 │       ├── ordered-frames.ts # Parallel capture, in-order consumption, bounded memory
 │       ├── ffmpeg.ts         # Encoder arguments; finds ffmpeg (flag, env, project's ffmpeg-static, PATH)
 │       ├── browser.ts, studio.ts, init.ts, project.ts, paths.ts, logger.ts
-├── packages/three/           # @freemotion/three workspace (ThreeCanvas)
 ├── templates/default/        # What `freemotion init` copies (`_gitignore` becomes `.gitignore`)
 ├── test/                     # e2e suite (`*.e2e-spec.ts`) and its fixture project
 ├── tsconfig.json             # Type checks src/ and test/ (NodeNext)
 ├── tsconfig.build.json       # Emits dist/ from src/
 └── tsconfig.projects.json    # Type checks templates/ and test/fixtures/ (bundler resolution)
+
+packages/three/               # @freemotion/three (ThreeCanvas)
 ```
 
 ## How the Pieces Fit
@@ -64,9 +67,9 @@ freemotion/
 ## Conventions
 
 - Audio identities must be stable across tabs and arbitrary frame order; do not use React `useId` for cross-tab asset identity.
-- The repository uses npm workspaces; keep the core and `packages/three` build and tests working together.
+- The repository uses pnpm workspaces (`pnpm-workspace.yaml`); keep the core and `packages/three` build and tests working together.
 - ESM everywhere; relative imports in `src/` use the `.js` extension (NodeNext). Templates and fixtures use bundler resolution and extensionless imports.
-- Style is enforced by ESLint with `@stylistic` (no Prettier). Run `npm run lint:fix` before committing.
+- Style is enforced by ESLint with `@stylistic` (no Prettier). Run `pnpm lint:fix` before committing.
 - Public API changes go together with the README (API table, examples) and tests.
 - Unit tests live next to the code as `*.spec.ts(x)` and run in Node; React output is checked with `renderToStaticMarkup`. Anything that needs Chromium or ffmpeg belongs in `test/*.e2e-spec.ts`, which runs against `dist/`.
 - Error messages are written for the user of the CLI: say what is wrong and what to do.
@@ -75,8 +78,8 @@ freemotion/
 
 | Command | What it does |
 |---|---|
-| `npm run build` | Compiles the core and workspace packages |
-| `npm run ts` | Type checks the core, workspaces, templates and fixtures |
-| `npm run lint` / `npm run lint:fix` | ESLint |
-| `npm test` | Core and workspace unit tests |
-| `npm run test:e2e` | Builds, then runs the CLI against `test/fixtures/basic` (renders, studio, scroll page) and a fresh `init` project (needs ffmpeg) |
+| `pnpm build` | Compiles the core and workspace packages |
+| `pnpm ts` | Type checks the core, workspaces, templates and fixtures |
+| `pnpm lint` / `pnpm lint:fix` | ESLint |
+| `pnpm test` | Core and workspace unit tests |
+| `pnpm test:e2e` | Builds, then runs the CLI against `packages/freemotion/test/fixtures/basic` (renders, studio, scroll page) and a fresh `init` project (needs ffmpeg) |

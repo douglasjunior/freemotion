@@ -1,5 +1,5 @@
 # compiled output
-/dist
+/packages/*/dist
 node_modules/
 /build
 
@@ -58,10 +58,11 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Renders and test scratch output
-/out
-/test/.tmp
-/test/fixtures/basic/out
-/test/fixtures/basic/public/clips
-/test/fixtures/basic/public/skill
+/packages/*/out
+/packages/freemotion/test/.tmp
+/packages/freemotion/test/fixtures/basic/out
+/packages/freemotion/test/fixtures/basic/public/clips
+/packages/freemotion/test/fixtures/basic/public/skill
 
 packages/*/dist/
+/packages/freemotion/README.md

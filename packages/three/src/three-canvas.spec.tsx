@@ -9,8 +9,8 @@ it('holds a suspended render until its fallback unmounts', async () => {
   const { act, create } = await import('react-test-renderer');
   const { createElement } = await import('react');
   const { HoldFallback } = await import('./three-canvas.js');
-  const { setEnvironment, resetEnvironment } = await import('../../../src/runtime/environment.js');
-  const { pendingRenderHolds, resetRenderHolds } = await import('../../../src/runtime/delay-render.js');
+  const { setEnvironment, resetEnvironment } = await import('../../freemotion/src/runtime/environment.js');
+  const { pendingRenderHolds, resetRenderHolds } = await import('../../freemotion/src/runtime/delay-render.js');
   setEnvironment({ isRendering: true });
   let root: ReturnType<typeof create>;
   try {
@@ -32,8 +32,8 @@ it('holds while a child suspends and releases when it resolves', async () => {
   const { act, create } = await import('react-test-renderer');
   const { createElement, Suspense } = await import('react');
   const { HoldFallback } = await import('./three-canvas.js');
-  const { setEnvironment, resetEnvironment } = await import('../../../src/runtime/environment.js');
-  const { pendingRenderHolds, resetRenderHolds } = await import('../../../src/runtime/delay-render.js');
+  const { setEnvironment, resetEnvironment } = await import('../../freemotion/src/runtime/environment.js');
+  const { pendingRenderHolds, resetRenderHolds } = await import('../../freemotion/src/runtime/delay-render.js');
   let resolve!: () => void;
   let ready = false;
   const promise = new Promise<void>((done) => {

@@ -1,18 +1,14 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "esnext",
     "moduleResolution": "bundler",
     "outDir": "dist",
-    "baseUrl": ".",
+    "rootDir": "..",
     "paths": {
-      "freemotion": [
-        "../../src/index.ts"
-      ]
+      "freemotion": ["../freemotion/src/index.ts"]
     },
-    "ignoreDeprecations": "6.0"
+    "types": ["vitest/globals", "node"]
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }

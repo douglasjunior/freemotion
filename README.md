@@ -565,7 +565,7 @@ Ideas and pull requests are welcome: [open an issue](https://github.com/douglasj
 
 1. Read [`AGENTS.md`](AGENTS.md) for the architecture and conventions.
 2. Fork the repository and create a topic branch.
-3. Make sure `npm run ts`, `npm run lint`, `npm test` and `npm run test:e2e` pass. The e2e suite renders real videos, so it needs ffmpeg on your `PATH`.
+3. Make sure `pnpm ts`, `pnpm lint`, `pnpm test` and `pnpm test:e2e` pass. The e2e suite renders real videos, so it needs ffmpeg on your `PATH`.
 4. Write commit messages following [Conventional Commits](https://www.conventionalcommits.org/) in English and open a pull request.
 
 ## ⭐ Star History
