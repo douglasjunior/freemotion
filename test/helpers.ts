@@ -1,5 +1,5 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,16 @@ export const REPO = fileURLToPath(new URL('..', import.meta.url));
 export const CLI = fileURLToPath(new URL('../dist/node/cli.js', import.meta.url));
 export const FIXTURE = fileURLToPath(new URL('./fixtures/basic', import.meta.url));
 export const SKILL_CLIPS_DIR = join(FIXTURE, 'public', 'skill');
+
+function generateClipWithFfmpeg(args: readonly string[], outputPath: string): void {
+  const result = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args, outputPath], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    if (existsSync(outputPath)) {
+      rmSync(outputPath, { force: true });
+    }
+    throw new Error(`ffmpeg failed generating ${outputPath} (code ${result.status}): ${result.stderr || result.error?.message}`);
+  }
+}
 
 export function ensureSkillClips(): void {
   mkdirSync(SKILL_CLIPS_DIR, { recursive: true });
@@ -21,71 +31,55 @@ export function ensureSkillClips(): void {
   const music = join(SKILL_CLIPS_DIR, 'music.wav');
 
   if (!existsSync(shot1)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
       '-vf', 'geq=r=\'mod(N*19\\,256)\':g=\'mod(N*37\\,256)\':b=\'mod(N*59\\,256)\'',
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-      shot1,
-    ]);
+    ], shot1);
   }
   if (!existsSync(shot2)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
       '-vf', 'geq=r=\'mod(N*23\\,256)\':g=\'mod(N*41\\,256)\':b=\'mod(N*61\\,256)\'',
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-      shot2,
-    ]);
+    ], shot2);
   }
   if (!existsSync(shot3)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'nullsrc=s=64x64:r=30:d=3',
       '-vf', 'geq=r=\'mod(N*29\\,256)\':g=\'mod(N*43\\,256)\':b=\'mod(N*67\\,256)\'',
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-      shot3,
-    ]);
+    ], shot3);
   }
   if (!existsSync(nar1)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=2',
       '-af', 'volume=8', '-c:a', 'pcm_s16le',
-      nar1,
-    ]);
+    ], nar1);
   }
   if (!existsSync(nar2)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'sine=frequency=1500:duration=2',
       '-af', 'volume=8', '-c:a', 'pcm_s16le',
-      nar2,
-    ]);
+    ], nar2);
   }
   if (!existsSync(nar3)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
-      '-f', 'lavfi', '-i', 'sine=frequency=2000:duration=2',
+    generateClipWithFfmpeg([
+      '-f', 'lavfi', '-i', 'sine=frequency=2500:duration=2',
       '-af', 'volume=8', '-c:a', 'pcm_s16le',
-      nar3,
-    ]);
+    ], nar3);
   }
   if (!existsSync(sfx)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'sine=frequency=800:duration=1',
       '-af', 'volume=8', '-c:a', 'pcm_s16le',
-      sfx,
-    ]);
+    ], sfx);
   }
   if (!existsSync(music)) {
-    spawnSync('ffmpeg', [
-      '-hide_banner', '-loglevel', 'error', '-y',
+    generateClipWithFfmpeg([
       '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
       '-af', 'volume=8', '-c:a', 'pcm_s16le',
-      music,
-    ]);
+    ], music);
   }
 }
 
@@ -93,9 +87,6 @@ export type RunResult = { code: number | null; stdout: string; stderr: string };
 
 /** Runs the built CLI to completion. */
 export function run(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
-  if (cwd === FIXTURE) {
-    ensureSkillClips();
-  }
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, FORCE_COLOR: '0', ...env } });
     let stdout = '';
@@ -212,3 +203,29 @@ export function computeRms(samples: Float32Array, start = 0, end = samples.lengt
   }
   return Math.sqrt(sum / count);
 }
+
+/**
+ * Computes normalized Goertzel power at target frequency `targetFreq`.
+ * Returns a value between 0.0 (no energy) and ~1.0 (pure tone at full amplitude).
+ */
+export function goertzelPower(samples: Float32Array, targetFreq: number, sampleRate = 48000): number {
+  if (samples.length === 0) return 0;
+  const n = samples.length;
+  const k = Math.round((n * targetFreq) / sampleRate);
+  const omega = (2 * Math.PI * k) / n;
+  const coeff = 2 * Math.cos(omega);
+
+  let s0 = 0;
+  let s1 = 0;
+  let s2 = 0;
+
+  for (let i = 0; i < n; i++) {
+    s0 = (samples[i] ?? 0) + coeff * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+
+  const power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+  return (4 * Math.max(0, power)) / (n * n);
+}
+

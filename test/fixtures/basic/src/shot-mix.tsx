@@ -25,7 +25,7 @@ export const ShotMix = () => {
           playbackRate={1}
           style={{ width: '100%', height: '100%' }}
         />
-        <Sequence from={15} durationInFrames={15}>
+        <Sequence from={18} durationInFrames={12}>
           <Audio src={staticFile('skill/narration1.wav')} />
         </Sequence>
       </Sequence>
@@ -36,7 +36,7 @@ export const ShotMix = () => {
           <Video
             src={staticFile('skill/shot2.mp4')}
             trimBefore={5}
-            playbackRate={1.5}
+            playbackRate={2}
             style={{ width: '100%', height: '100%' }}
           />
           <Audio src={staticFile('skill/narration2.wav')} />
@@ -48,14 +48,14 @@ export const ShotMix = () => {
         <Video
           src={staticFile('skill/shot3.mp4')}
           trimBefore={0}
-          playbackRate={2}
+          playbackRate={0.5}
           style={{ width: '100%', height: '100%' }}
         />
         <Audio src={staticFile('skill/narration3.wav')} />
       </Sequence>
 
       {/* SFX in Sequence layout="none" with negative sequence start frame */}
-      <Sequence from={-10} durationInFrames={15} layout="none">
+      <Sequence from={-5} durationInFrames={18} layout="none">
         <Audio src={staticFile('skill/sfx.wav')} />
       </Sequence>
 
@@ -64,7 +64,7 @@ export const ShotMix = () => {
         src={staticFile('skill/music.wav')}
         loop
         volume={(f) => {
-          if (f < 15) return 0;
+          if (f < 18) return 0;
           if (f < 30) return 0.15;
           if (f < 60) return 0.8;
           return 0.2;

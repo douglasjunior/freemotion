@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { centerPixel, expectColor, FIXTURE, hasEncoder, pixelAt, probe, run } from './helpers.js';
+import { centerPixel, ensureSkillClips, expectColor, FIXTURE, hasEncoder, pixelAt, probe, run } from './helpers.js';
 
 
 const OUT = join(FIXTURE, 'out');
@@ -10,7 +10,10 @@ const BLUE = [0, 0, 255];
 const GREEN = [0, 255, 0];
 
 describe('freemotion render', () => {
-  beforeAll(() => rmSync(OUT, { recursive: true, force: true }));
+  beforeAll(() => {
+    rmSync(OUT, { recursive: true, force: true });
+    ensureSkillClips();
+  });
   afterAll(() => rmSync(OUT, { recursive: true, force: true }));
 
   it('renders an MP4 with every frame, tagged as BT.709', async () => {
