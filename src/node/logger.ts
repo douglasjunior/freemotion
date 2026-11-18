@@ -6,16 +6,18 @@ export type Logger = {
   readonly error: (message: string) => void;
 };
 
-export function createLogger({ quiet = false, stdout = process.stdout, stderr = process.stderr }: {
+export function createLogger({ quiet = false, stdout = process.stdout, stderr = process.stderr, json = false }: {
   readonly quiet?: boolean;
   readonly stdout?: NodeJS.WriteStream;
   readonly stderr?: NodeJS.WriteStream;
+  readonly json?: boolean;
 } = {}): Logger {
-  const tty = Boolean(stdout.isTTY);
+  const out = json ? stderr : stdout;
+  const tty = Boolean(out.isTTY);
   let line = false;
   const clear = () => {
     if (line) {
-      stdout.write('\r\x1b[2K');
+      out.write('\r\x1b[2K');
       line = false;
     }
   };
@@ -23,19 +25,19 @@ export function createLogger({ quiet = false, stdout = process.stdout, stderr = 
     info: (message) => {
       if (!quiet) {
         clear();
-        stdout.write(`${message}\n`);
+        out.write(`${message}\n`);
       }
     },
     progress: (message) => {
-      if (!quiet && tty) {
-        stdout.write(`\r\x1b[2K${message}`);
+      if (!quiet && tty && !json) {
+        out.write(`\r\x1b[2K${message}`);
         line = true;
       }
     },
     done: (message) => {
       if (!quiet) {
         clear();
-        stdout.write(`✔ ${message}\n`);
+        out.write(`✔ ${message}\n`);
       }
     },
     error: (message) => {

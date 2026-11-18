@@ -111,6 +111,13 @@ describe('parseCommand', () => {
     expect(parse('render', '--all')).toMatchObject({ options: { compositions: 'all' } });
   });
 
+  it('parses --progress json', () => {
+    expect(parse('render', 'Intro', '--progress', 'json')).toMatchObject({
+      name: 'render',
+      options: { progress: 'json' },
+    });
+  });
+
   it.each([
     [['render'], /Which composition/],
     [['render', 'A', '--all'], /not both/],
@@ -145,6 +152,7 @@ describe('parseCommand', () => {
     [['render', 'A', '-o', 'out.mov', '--prores-profile', 'hq', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
     [['render', 'A', '-o', 'out.mov', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
     [['render', 'A', '-o', 'out.gif', '--pixel-format', 'yuv420p'], /Format "gif" does not support --pixel-format/],
+    [['render', 'A', '--progress', 'invalid'], /--progress must be json/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
   ])('rejects %j', (argv, message) => {
