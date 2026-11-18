@@ -187,6 +187,7 @@ npx freemotion render --all                      # every composition, to out/
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
+--no-build-cache            Rebuild compositions instead of using the cached bundle
 --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
 --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
 --quiet                     Only print errors

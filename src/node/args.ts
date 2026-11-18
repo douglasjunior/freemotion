@@ -62,6 +62,7 @@ Options
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
   --config <file>             Vite config to merge (default: vite.config.* in the project)
   --no-config                 Ignore the project's Vite config
+  --no-build-cache            Rebuild compositions instead of using the cached bundle
   --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
   --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
   --quiet                     Only print errors`,
@@ -207,6 +208,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           entry: { type: 'string' },
           config: { type: 'string' },
           'no-config': { type: 'boolean' },
+          'build-cache': { type: 'boolean' },
           ffmpeg: { type: 'string' },
           'browser-executable': { type: 'string' },
           quiet: { type: 'boolean' },
@@ -234,6 +236,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           root: cwd,
           entry: values.entry,
           configFile: configFile(values),
+          buildCache: values['build-cache'],
           compositions: values.all ? 'all' : positionals,
           output: values.output,
           outDir: values['out-dir'] ?? 'out',
