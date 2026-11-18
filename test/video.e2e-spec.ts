@@ -40,66 +40,63 @@ function pixelAt(file: string, frame: number, x: number, y: number): [number, nu
 describe('<Video> render mode e2e', () => {
   beforeAll(() => {
     rmSync(OUT, { recursive: true, force: true });
+    rmSync(CLIPS_DIR, { recursive: true, force: true });
     mkdirSync(CLIPS_DIR, { recursive: true });
 
-    if (!existsSync(TEST_MP4)) {
-      const result = spawnSync('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=red:s=64x64:r=30:d=0.5',
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=blue:s=64x64:r=30:d=0.5',
-        '-filter_complex',
-        '[0:v][1:v]concat=n=2:v=1:a=0',
-        '-pix_fmt',
-        'yuv420p',
-        TEST_MP4,
-      ], { encoding: 'utf8' });
+    const resTest = spawnSync('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=red:s=64x64:r=30:d=0.5',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=blue:s=64x64:r=30:d=0.5',
+      '-filter_complex',
+      '[0:v][1:v]concat=n=2:v=1:a=0',
+      '-pix_fmt',
+      'yuv420p',
+      TEST_MP4,
+    ], { encoding: 'utf8' });
 
-      if (result.status !== 0) {
-        throw new Error(`Failed to generate test fixture clip with ffmpeg (code ${result.status}): ${result.stderr || result.error?.message}`);
-      }
+    if (resTest.status !== 0) {
+      throw new Error(`Failed to generate test fixture clip with ffmpeg (code ${resTest.status}): ${resTest.stderr || resTest.error?.message}`);
     }
 
-    if (!existsSync(CLIP_A)) {
-      const result = spawnSync('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-f',
-        'lavfi',
-        '-i',
-        'nullsrc=s=64x64:r=60:d=3',
-        '-vf',
-        'geq=r=\'mod(N*17\\,256)\':g=\'mod(N*31\\,256)\':b=\'mod(N*53\\,256)\'',
-        '-c:v',
-        'libx264',
-        '-g',
-        '60',
-        '-keyint_min',
-        '60',
-        '-sc_threshold',
-        '0',
-        '-pix_fmt',
-        'yuv420p',
-        CLIP_A,
-      ], { encoding: 'utf8' });
+    const resClipA = spawnSync('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'nullsrc=s=64x64:r=60:d=3',
+      '-vf',
+      'geq=r=\'mod(N*17\\,256)\':g=\'mod(N*31\\,256)\':b=\'mod(N*53\\,256)\'',
+      '-c:v',
+      'libx264',
+      '-g',
+      '60',
+      '-keyint_min',
+      '60',
+      '-sc_threshold',
+      '0',
+      '-pix_fmt',
+      'yuv420p',
+      CLIP_A,
+    ], { encoding: 'utf8' });
 
-      if (result.status !== 0) {
-        throw new Error(`Failed to generate clipA with ffmpeg (code ${result.status}): ${result.stderr || result.error?.message}`);
-      }
+    if (resClipA.status !== 0) {
+      throw new Error(`Failed to generate clipA with ffmpeg (code ${resClipA.status}): ${resClipA.stderr || resClipA.error?.message}`);
     }
 
-    if (hasEncoder('libvpx-vp9') && !existsSync(ALPHA_WEBM)) {
-      const result = spawnSync('ffmpeg', [
+    if (hasEncoder('libvpx-vp9')) {
+      const resWebm = spawnSync('ffmpeg', [
         '-hide_banner',
         '-loglevel',
         'error',
@@ -117,13 +114,13 @@ describe('<Video> render mode e2e', () => {
         ALPHA_WEBM,
       ], { encoding: 'utf8' });
 
-      if (result.status !== 0) {
-        throw new Error(`Failed to generate alpha webm with ffmpeg (code ${result.status}): ${result.stderr || result.error?.message}`);
+      if (resWebm.status !== 0) {
+        throw new Error(`Failed to generate alpha webm with ffmpeg (code ${resWebm.status}): ${resWebm.stderr || resWebm.error?.message}`);
       }
     }
 
-    if (hasEncoder('prores_ks') && !existsSync(ALPHA_PRORES)) {
-      const result = spawnSync('ffmpeg', [
+    if (hasEncoder('prores_ks')) {
+      const resProres = spawnSync('ffmpeg', [
         '-hide_banner',
         '-loglevel',
         'error',
@@ -143,8 +140,8 @@ describe('<Video> render mode e2e', () => {
         ALPHA_PRORES,
       ], { encoding: 'utf8' });
 
-      if (result.status !== 0) {
-        throw new Error(`Failed to generate alpha ProRes with ffmpeg (code ${result.status}): ${result.stderr || result.error?.message}`);
+      if (resProres.status !== 0) {
+        throw new Error(`Failed to generate alpha ProRes with ffmpeg (code ${resProres.status}): ${resProres.stderr || resProres.error?.message}`);
       }
     }
   });
@@ -222,9 +219,32 @@ describe('<Video> render mode e2e', () => {
       const score = psnr(outPng, refPng);
       expect(score).toBeGreaterThan(35);
     }
+
+    // Full sequential render pass for playbackRate = 2
+    const fullRate2 = join(OUT, 'rate2_full.mp4');
+    const resFull = await run([
+      'render',
+      'VideoPlaybackRate',
+      '--entry',
+      'src/video.tsx',
+      '--props',
+      JSON.stringify({ playbackRate: 2, trimBefore }),
+      '-o',
+      fullRate2,
+    ], FIXTURE);
+    expect(resFull.code).toBe(0);
+
+    for (const f of [5, 10]) {
+      const framePng = join(OUT, `rate2_full_${f}.png`);
+      execFileSync('ffmpeg', ['-v', 'error', '-i', fullRate2, '-vf', `select=eq(n\\,${f})`, '-frames:v', '1', '-y', framePng]);
+      const exactSeconds = (trimBefore + f * 2) / 30;
+      const ref = referenceFrame(CLIP_A, exactSeconds, join(OUT, `ref_rate2_full_${f}.png`));
+      expect(psnr(framePng, ref)).toBeGreaterThan(30);
+    }
   });
 
   it('handles consecutive shots from the same file without frame bleeding', async () => {
+    // 1. Still frames render verification
     const cut14 = join(OUT, 'cuts_frame_14.png');
     const cut15 = join(OUT, 'cuts_frame_15.png');
 
@@ -242,9 +262,27 @@ describe('<Video> render mode e2e', () => {
     const ref15 = referenceFrame(CLIP_A, 60 / 30, join(OUT, 'ref_cut15.png'));
     expect(psnr(cut15, ref15)).toBeGreaterThan(35);
 
-    // Verify it did not leak frame 15 from the first shot (source time 15 / 30 = 0.5s)
+    // Frame 15 must NOT match the last frame of the previous shot (frame 14 / 30s)
+    expect(psnr(cut15, ref14)).toBeLessThan(20);
+
+    // Frame 15 must NOT leak frame 15 from the first shot (source time 15 / 30 = 0.5s)
     const refLeak = referenceFrame(CLIP_A, 15 / 30, join(OUT, 'ref_leak.png'));
-    expect(psnr(cut15, refLeak)).toBeLessThan(25);
+    expect(psnr(cut15, refLeak)).toBeLessThan(20);
+
+    // 2. Full sequential multi-frame MP4 render pass verifying sequential decoder & LRU cache
+    const fullCuts = join(OUT, 'cuts_full.mp4');
+    const resFull = await run(['render', 'VideoCuts', '--entry', 'src/video.tsx', '-o', fullCuts], FIXTURE);
+    expect(resFull.code).toBe(0);
+
+    const f14 = join(OUT, 'cuts_full_14.png');
+    const f15 = join(OUT, 'cuts_full_15.png');
+    execFileSync('ffmpeg', ['-v', 'error', '-i', fullCuts, '-vf', 'select=eq(n\\,14)', '-frames:v', '1', '-y', f14]);
+    execFileSync('ffmpeg', ['-v', 'error', '-i', fullCuts, '-vf', 'select=eq(n\\,15)', '-frames:v', '1', '-y', f15]);
+
+    expect(psnr(f14, ref14)).toBeGreaterThan(30);
+    expect(psnr(f15, ref15)).toBeGreaterThan(30);
+    expect(psnr(f15, ref14)).toBeLessThan(20);
+    expect(psnr(f15, refLeak)).toBeLessThan(20);
   });
 
   it.runIf(hasEncoder('libvpx-vp9'))('composites transparent WebM over a colored background', async () => {
@@ -281,6 +319,12 @@ describe('<Video> render mode e2e', () => {
 
     const score = psnr(outC1, outC3);
     expect(score).toBe(Infinity);
+
+    // Also assert frame 15 from concurrency output matches ground truth reference
+    const ref15 = referenceFrame(CLIP_A, 60 / 30, join(OUT, 'ref_cut15_c1.png'));
+    const f15C1 = join(OUT, 'c1_frame_15.png');
+    execFileSync('ffmpeg', ['-v', 'error', '-i', outC1, '-vf', 'select=eq(n\\,15)', '-frames:v', '1', '-y', f15C1]);
+    expect(psnr(f15C1, ref15)).toBeGreaterThan(30);
   });
 
   it('fails with a clear error without empty frame when clip is missing', async () => {
