@@ -23,6 +23,7 @@ import {
   type PixelFormat,
   type ProResProfile,
 } from './ffmpeg.js';
+import { GL_BACKENDS, isGlBackend, type GlBackend } from './gl.js';
 import type { RenderOptions } from './render.js';
 import type { StudioOptions } from './studio.js';
 
@@ -37,6 +38,7 @@ Commands
   init [directory]     Create a new project (default directory: my-video)
   studio               Preview your compositions with hot reload
   render <id...>       Render compositions to MP4, WebM, MOV, GIF, PNG or animated SVG
+  browser ensure       Download or verify the Chromium headless shell
 
 Options
   -h, --help           Show help for a command
@@ -90,6 +92,8 @@ Options
   --recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
   --timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
   --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
+  --gl <backend>              WebGL backend: angle, swangle, egl, swiftshader, vulkan
+  --no-download               Fail if the browser is not installed instead of downloading it
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
   --config <file>             Vite config to merge (default: vite.config.* in the project)
   --no-config                 Ignore the project's Vite config
@@ -97,6 +101,14 @@ Options
   --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
   --progress <mode>           json (one JSON event per line on stdout; logs to stderr)
   --quiet                     Only print errors`,
+
+  browser: `Usage
+  freemotion browser ensure [options]
+
+Verify or install the Chromium headless shell used for rendering.
+
+Options
+  --browser-executable <path> Chromium/Chrome to verify instead of the bundled headless shell`,
 };
 
 export function defaultConcurrency(): number {
@@ -108,7 +120,8 @@ export type Command =
   | { readonly name: 'version' }
   | { readonly name: 'init'; readonly directory?: string }
   | { readonly name: 'studio'; readonly options: Omit<StudioOptions, 'log'> }
-  | { readonly name: 'render'; readonly quiet: boolean; readonly options: Omit<RenderOptions, 'log'> };
+  | { readonly name: 'render'; readonly quiet: boolean; readonly options: Omit<RenderOptions, 'log'> }
+  | { readonly name: 'browser'; readonly subcommand: 'ensure'; readonly options: { readonly executablePath?: string } };
 
 function integer(value: string | undefined, flag: string, min: number): number | undefined {
   if (value === undefined) {
@@ -248,6 +261,8 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'recycle-tabs': { type: 'string' },
           timeout: { type: 'string' },
           'video-cache-mb': { type: 'string' },
+          gl: { type: 'string' },
+          download: { type: 'boolean' },
           entry: { type: 'string' },
           config: { type: 'string' },
           'no-config': { type: 'boolean' },
@@ -268,6 +283,9 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
       }
       if (values.format && !(OUTPUT_FORMATS as readonly string[]).includes(values.format)) {
         throw new Error(`--format must be one of ${OUTPUT_FORMATS.join(', ')} (got "${values.format}").`);
+      }
+      if (values.gl !== undefined && !isGlBackend(values.gl)) {
+        throw new Error(`--gl must be one of ${GL_BACKENDS.join(', ')} (got "${values.gl}").`);
       }
       if (values.frame !== undefined && values.frames !== undefined) {
         throw new Error('Use --frame for a still image or --frames for a video range, not both.');
@@ -391,9 +409,39 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           recycleTabs: values['recycle-tabs'] === undefined ? 1000 : integer(values['recycle-tabs'], '--recycle-tabs', 0),
           timeout: integer(values.timeout, '--timeout', 1000),
           videoCacheMb: integer(values['video-cache-mb'], '--video-cache-mb', 1),
+          gl: values.gl as GlBackend | undefined,
+          download: values.download,
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,
           browserExecutable: values['browser-executable'],
           progress: values.progress as 'json' | undefined,
+        },
+      };
+    }
+
+    case 'browser': {
+      const { values, positionals } = parseArgs({
+        args,
+        allowPositionals: true,
+        options: {
+          help: { type: 'boolean', short: 'h' },
+          'browser-executable': { type: 'string' },
+        },
+      });
+      if (values.help) {
+        return { name: 'help', topic: 'browser' };
+      }
+      const subcommand = positionals[0];
+      if (!subcommand) {
+        throw new Error('browser requires a subcommand. Available: ensure.');
+      }
+      if (subcommand !== 'ensure') {
+        throw new Error(`Unknown browser subcommand "${subcommand}". Available: ensure.`);
+      }
+      return {
+        name: 'browser',
+        subcommand: 'ensure',
+        options: {
+          executablePath: values['browser-executable'],
         },
       };
     }

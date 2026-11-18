@@ -29,6 +29,7 @@ import {
   type ProResProfile,
   type VideoFormat,
 } from './ffmpeg.js';
+import { type GlBackend } from './gl.js';
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
@@ -94,6 +95,10 @@ export type RenderOptions = {
   readonly silentAudio?: boolean;
   /** Audio codec: aac or opus. */
   readonly audioCodec?: AudioCodec;
+  /** WebGL backend for Chromium. */
+  readonly gl?: GlBackend;
+  /** If false, fail when the browser is not installed instead of downloading it. Default: true. */
+  readonly download?: boolean;
   /** ffmpeg binary. Default: the project's `ffmpeg-static`, else `ffmpeg` on PATH. */
   readonly ffmpeg?: string;
   readonly browserExecutable?: string;
@@ -596,7 +601,12 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
     const cacheBytes = (options.videoCacheMb ?? 512) * 1024 * 1024;
     videoServer = await startVideoFrameServer({ ffmpeg, publicDir, cacheBytes });
 
-    browser = await launchBrowser({ executablePath: options.browserExecutable, log: log.info });
+    browser = await launchBrowser({
+      executablePath: options.browserExecutable,
+      gl: options.gl,
+      download: options.download,
+      log: log.info,
+    });
     const session: Session = {
       browser,
       baseUrl: `http://127.0.0.1:${port}/`,

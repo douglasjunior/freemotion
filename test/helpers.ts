@@ -11,9 +11,9 @@ export const FIXTURE = fileURLToPath(new URL('./fixtures/basic', import.meta.url
 export type RunResult = { code: number | null; stdout: string; stderr: string };
 
 /** Runs the built CLI to completion. */
-export function run(args: readonly string[], cwd: string): Promise<RunResult> {
+export function run(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, FORCE_COLOR: '0' } });
+    const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, FORCE_COLOR: '0', ...env } });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk));

@@ -55,6 +55,8 @@ describe('parseCommand', () => {
         '--scale', '2',
         '--crf', '20',
         '--concurrency', '3',
+        '--gl', 'swangle',
+        '--no-download',
         '--video-cache-mb', '1024',
         '--quiet',
         '--image-format', 'jpeg',
@@ -74,6 +76,8 @@ describe('parseCommand', () => {
         scale: 2,
         crf: 20,
         concurrency: 3,
+        gl: 'swangle',
+        download: false,
         videoCacheMb: 1024,
         ffmpeg: '/opt/ffmpeg',
         imageFormat: 'jpeg',
@@ -119,6 +123,19 @@ describe('parseCommand', () => {
     });
     expect(parse('render', 'Intro', '-o', 'out.webm', '--audio-codec', 'opus')).toMatchObject({
       options: { audioCodec: 'opus' },
+    });
+  });
+
+  it('parses browser ensure', () => {
+    expect(parse('browser', 'ensure')).toEqual({
+      name: 'browser',
+      subcommand: 'ensure',
+      options: { executablePath: undefined },
+    });
+    expect(parse('browser', 'ensure', '--browser-executable', '/opt/chrome')).toEqual({
+      name: 'browser',
+      subcommand: 'ensure',
+      options: { executablePath: '/opt/chrome' },
     });
   });
 
@@ -196,6 +213,9 @@ describe('parseCommand', () => {
     [['render', 'A', '--timeout=-10'], /--timeout must be an integer of at least 1000/],
     [['render', 'A', '--timeout', 'abc'], /--timeout must be an integer of at least 1000/],
     [['render', 'A', '--progress', 'invalid'], /--progress must be json/],
+    [['render', 'A', '--gl', 'invalid'], /--gl must be one of/],
+    [['browser'], /browser requires a subcommand/],
+    [['browser', 'foo'], /Unknown browser subcommand "foo"/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
   ])('rejects %j', (argv, message) => {
@@ -203,7 +223,7 @@ describe('parseCommand', () => {
   });
 
   it('has help for every command', () => {
-    expect(Object.keys(HELP)).toEqual(['main', 'init', 'studio', 'render']);
+    expect(Object.keys(HELP)).toEqual(['main', 'init', 'studio', 'render', 'browser']);
   });
 });
 

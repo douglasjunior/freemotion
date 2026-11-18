@@ -179,6 +179,16 @@ describe('freemotion render', () => {
       expect(stderr).toContain('ffmpeg was not found');
     });
 
+    it('explains a missing browser with --no-download', async () => {
+      const { code, stderr } = await run(
+        ['render', 'Colors', '--no-download'],
+        FIXTURE,
+        { PLAYWRIGHT_BROWSERS_PATH: '/tmp/nonexistent-playwright-browsers' },
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain('Browser is not installed. Run freemotion browser ensure or pass --browser-executable.');
+    });
+
     it('fails when a delayRender hold exceeds --timeout and passes when --timeout is larger', async () => {
       const slowFailOutput = join(OUT, 'slow-hold-fail.mp4');
       const { code: failCode, stderr: failStderr } = await run(
