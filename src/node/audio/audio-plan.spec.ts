@@ -125,6 +125,47 @@ describe('audio-plan', () => {
       expect(filterStr).toContain('atrim=duration=2.000000,apad=whole_dur=2.000000');
     });
 
+    it('honors step parameter to avoid truncating audio duration with every-nth-frame', async () => {
+      // 60-frame composition sampled every 2 frames: lastObserved is frame 58
+      const asset: AudioAsset = {
+        id: 'stepped_asset',
+        src: 'track.mp3',
+        startFrame: 0,
+        trimBefore: 0,
+        playbackRate: 1,
+        loop: false,
+        volumes: [
+          [0, 1],
+          [2, 1],
+          [58, 1],
+        ],
+      };
+
+      const planWithStep = await planAudio({
+        assets: [asset],
+        fps: 30,
+        range: { from: 0, to: 60 },
+        step: 2,
+        probe: mockProbe,
+        tempDir: '/tmp/test_audio',
+      });
+
+      // With step=2, effectiveTo = min(60, 58 + 2) = 60 -> outputDuration = 60 / 30 = 2.0s
+      const filterStr = planWithStep.passes[0]!.args[planWithStep.passes[0]!.args.indexOf('-filter_complex') + 1]!;
+      expect(filterStr).toContain('atrim=duration=2.000000');
+
+      const planWithoutStep = await planAudio({
+        assets: [asset],
+        fps: 30,
+        range: { from: 0, to: 60 },
+        probe: mockProbe,
+        tempDir: '/tmp/test_audio',
+      });
+      // Without step, effectiveTo = min(60, 58 + 1) = 59 -> outputDuration = 59 / 30 = 1.966667s
+      const filterStrWithout = planWithoutStep.passes[0]!.args[planWithoutStep.passes[0]!.args.indexOf('-filter_complex') + 1]!;
+      expect(filterStrWithout).toContain('atrim=duration=1.966667');
+    });
+
     it('cuts initial source portion proportionally to playbackRate for negative sequence start', async () => {
       // Sequence started at -10, playbackRate 2.0. Render range [0, 30].
       // At frame 0, 10 frames have elapsed: 10 * 2.0 / 30 = 0.666667s on source.

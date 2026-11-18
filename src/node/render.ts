@@ -365,11 +365,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     const probe = async (src: string) => {
       let info = probeCache.get(src);
       if (info === undefined && !probeCache.has(src)) {
-        try {
-          info = await probeAudioMedia(src, session.ffmpeg);
-        } catch {
-          info = undefined;
-        }
+        info = await probeAudioMedia(src, session.ffmpeg);
         probeCache.set(src, info);
       }
       return info;
@@ -394,7 +390,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     await mkdir(dirname(job.output), { recursive: true });
 
     if (isMuted || !hasAudio) {
-      if (!isMuted && options.silentAudio) {
+      if (options.silentAudio) {
         reporter.event({ phase: 'mux', id: job.id });
         await runFfmpeg(session.ffmpeg, [
           '-i', videoOutput,
@@ -416,6 +412,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
         assets: resolvedAssets,
         fps: meta.fps,
         range,
+        step,
         probe,
         tempDir: jobTempDir!,
       });

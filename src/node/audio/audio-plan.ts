@@ -21,6 +21,7 @@ export type PlanAudioOptions = {
   readonly assets: readonly AudioAsset[];
   readonly fps: number;
   readonly range?: { readonly from: number; readonly to: number };
+  readonly step?: number;
   readonly sampleRate?: number;
   readonly probe: AudioProbeFunction;
   readonly tempDir: string;
@@ -95,6 +96,7 @@ export async function planAudio({
   assets,
   fps,
   range,
+  step = 1,
   sampleRate = 48000,
   probe,
   tempDir,
@@ -128,7 +130,7 @@ export async function planAudio({
     const lastObserved = asset.volumes[asset.volumes.length - 1]![0];
 
     const effectiveFrom = Math.max(rangeFrom, firstObserved);
-    const effectiveTo = rangeTo !== undefined ? Math.min(rangeTo, lastObserved + 1) : (lastObserved + 1);
+    const effectiveTo = rangeTo !== undefined ? Math.min(rangeTo, lastObserved + step) : (lastObserved + step);
 
     if (effectiveFrom >= effectiveTo) {
       continue;

@@ -39,10 +39,17 @@ const VideoWithAudio = () => (
   </AbsoluteFill>
 );
 
+const MissingAudio = () => (
+  <AbsoluteFill style={{ backgroundColor: '#112233' }}>
+    <Audio src={staticFile('clips/missing_tone.wav')} />
+  </AbsoluteFill>
+);
+
 export default [
   defineComposition({ ...size, id: 'NarrationAudio', component: NarrationAudio, durationInFrames: 60 }),
   defineComposition({ ...size, id: 'MusicEnvelope', component: MusicEnvelope, durationInFrames: 90 }),
   defineComposition({ ...size, id: 'SfxNegative', component: SfxNegative, durationInFrames: 30 }),
   defineComposition({ ...size, id: 'NoAudio', component: NoAudio, durationInFrames: 30 }),
   defineComposition({ ...size, id: 'VideoWithAudio', component: VideoWithAudio, durationInFrames: 30 }),
+  defineComposition({ ...size, id: 'MissingAudio', component: MissingAudio, durationInFrames: 30 }),
 ];

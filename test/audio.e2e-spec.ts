@@ -18,6 +18,15 @@ const CLIPS_DIR = join(FIXTURE, 'public', 'clips');
 const TONE_WAV = join(CLIPS_DIR, 'tone.wav');
 const CLIP_AUDIO_MP4 = join(CLIPS_DIR, 'clip_audio.mp4');
 
+function findOnsetSample(pcm: Float32Array, threshold = 0.05): number {
+  for (let i = 0; i < pcm.length; i++) {
+    if (Math.abs(pcm[i]!) >= threshold) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 describe('Audio rendering pipeline e2e', () => {
   beforeAll(() => {
     rmSync(OUT, { recursive: true, force: true });
@@ -97,6 +106,11 @@ describe('Audio rendering pipeline e2e', () => {
     // 60 frames at 30 fps = 2.0s = 96000 samples at 48 kHz
     expect(pcm.length).toBeCloseTo(96000, -3);
 
+    // Frame 30 onset at 48 kHz is at sample 48000 (1 frame = 1600 samples)
+    const onset = findOnsetSample(pcm);
+    expect(onset).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(onset - 48000)).toBeLessThanOrEqual(1600);
+
     // Frame 30 onset: before frame 29 (sample 46400), should be near silent
     const preOnsetRms = computeRms(pcm, 0, 46400);
     expect(preOnsetRms).toBeLessThan(0.01);
@@ -162,9 +176,45 @@ describe('Audio rendering pipeline e2e', () => {
     // 30 frames rendered = 1.0s = 48000 samples at 48 kHz
     expect(pcm.length).toBeCloseTo(48000, -3);
 
-    // Because frame 30 is now frame 0 of the segment, the tone starts immediately at 0
+    // Because frame 30 is now frame 0 of the segment, the tone starts immediately at 0 (within ±1 frame = 1600 samples)
+    const onset = findOnsetSample(pcm);
+    expect(onset).toBeGreaterThanOrEqual(0);
+    expect(onset).toBeLessThanOrEqual(1600);
+
     const startRms = computeRms(pcm, 4800, 38400);
     expect(startRms).toBeGreaterThan(0.5);
+  });
+
+  it('fails with a fatal error when an audio file is missing', async () => {
+    const output = join(OUT, 'MissingAudio.mp4');
+    const { code, stderr } = await run(
+      ['render', 'MissingAudio', '--entry', 'src/audio.tsx', '-o', output],
+      FIXTURE,
+    );
+    expect(code).not.toBe(0);
+    expect(stderr).toMatch(/audio file not found/i);
+  });
+
+  it('renders audio properly with --every-nth-frame without truncation', async () => {
+    const output = join(OUT, 'EveryNthFrameAudio.mp4');
+    const { code, stderr } = await run(
+      ['render', 'NarrationAudio', '--entry', 'src/audio.tsx', '--every-nth-frame', '2', '-o', output],
+      FIXTURE,
+    );
+    expect(code, stderr).toBe(0);
+
+    const pcm = readPcmMono(output);
+    // 60 frames composition with --every-nth-frame 2 -> 30 frames at 15 fps = 2.0s = 96000 samples at 48 kHz
+    expect(pcm.length).toBeCloseTo(96000, -3);
+
+    // Narration onset at 1.0s (sample 48000, ±1600 samples)
+    const onset = findOnsetSample(pcm);
+    expect(onset).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(onset - 48000)).toBeLessThanOrEqual(1600);
+
+    // Tone should play through to near the end without early truncation (sample 86400 to 93600: 1.8s to 1.95s)
+    const endRms = computeRms(pcm, 86400, 93600);
+    expect(endRms).toBeGreaterThan(0.5);
   });
 
   it('produces no audio stream when no assets are registered, and silent track with --silent-audio', async () => {
@@ -204,6 +254,26 @@ describe('Audio rendering pipeline e2e', () => {
     );
     expect(code, stderr).toBe(0);
     expect(probeAudioStreams(output)).toHaveLength(0);
+  });
+
+  it('muxes silent audio track when both --muted and --silent-audio are passed', async () => {
+    const output = join(OUT, 'MutedSilentAudio.mp4');
+    const { code, stderr } = await run(
+      ['render', 'NarrationAudio', '--entry', 'src/audio.tsx', '--muted', '--silent-audio', '-o', output],
+      FIXTURE,
+    );
+    expect(code, stderr).toBe(0);
+
+    const audioStreams = probeAudioStreams(output);
+    expect(audioStreams).toHaveLength(1);
+    expect(audioStreams[0]).toMatchObject({
+      codec_name: 'aac',
+      sample_rate: '48000',
+      channels: 2,
+    });
+
+    const pcm = readPcmMono(output);
+    expect(computeRms(pcm)).toBeLessThan(0.001);
   });
 
   it.runIf(hasEncoder('libopus') && hasEncoder('libvpx-vp9'))('renders WebM container with Opus audio codec', async () => {

@@ -191,7 +191,7 @@ npx freemotion render --all                      # every composition, to out/
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
 --audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
 --muted                     Mute all audio in the rendered video
---silent-audio              Add a silent audio track when no audio assets are present
+--silent-audio              Add a silent audio track when no audio is present (or when --muted)
 --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
 --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
@@ -422,7 +422,7 @@ What's different:
 
 - **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
 - **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
-- **Not there yet:** audio, transparent video, `calculateMetadata()` and cloud rendering.
+- **Not there yet:** `calculateMetadata()` and cloud rendering.
 
 freemotion is an independent project written from scratch, and it is not affiliated with Remotion.
 
@@ -432,9 +432,9 @@ freemotion is an independent project written from scratch, and it is not affilia
 
 ## 🗺️ Roadmap
 
-- [ ] Audio tracks and `<Audio>`
+- [x] Audio tracks and `<Audio>`
+- [x] Transparent output (ProRes 4444, VP9 with alpha)
 - [ ] `<Video>` with frame-accurate seeking
-- [ ] Transparent output (ProRes 4444, VP9 with alpha)
 - [ ] A render button and a props editor in the studio
 - [ ] More `freemotion init` templates
 
