@@ -504,23 +504,31 @@ loadFont({
 
 ## 🔁 Coming from Remotion?
 
-freemotion keeps the names you already know, so most components move over by changing the import:
+| Remotion | freemotion |
+|---|---|
+| `registerRoot` / `<Composition>` | Default-export an array of `defineComposition()` values. |
+| `OffthreadVideo` | `<Video>`: exact decoded frames during render, HTML video in preview. |
+| `Html5Audio` | `<Audio>`: frame-based volume and render mixing. |
+| `getRemotionEnvironment()` | `getEnvironment()` (`isStudio`, `isRendering`, `isPlayer`). |
+| `@remotion/three` | `@freemotion/three` and `<ThreeCanvas>`. |
+| `@remotion/fonts` | `loadFont({ family, url, ... })`. |
+| `remotion.config.ts` | CLI flags such as `--codec`, `--concurrency`, `--gl` and `--scale`. |
+| Remotion Player | `<Player composition={composition} />`; control with `frame`, `playing` and `muted`. |
 
-```diff
-- import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'remotion';
-+ import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
-```
+To port a project:
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Freeze`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+1. Install `freemotion`, React 19 and React DOM 19. Replace runtime imports, then replace `OffthreadVideo` and `Html5Audio` with `Video` and `Audio`.
+2. Export compositions from `src/compositions.tsx` using `defineComposition`, including dimensions, fps, duration, component and default props. Move assets to `public/` and reference them with `staticFile()`.
+3. Replace font loaders with `loadFont`, and translate render configuration into CLI flags. For 3D, install `@freemotion/three`, `three` and `@react-three/fiber` 9, then use `ThreeCanvas` with the composition width and height.
+4. Run `freemotion studio --no-open`, inspect audio and named sequence tracks, and render representative frames and videos. Use `--gl swangle` on headless machines without a GPU.
 
-What's different:
+`showInTimeline` and `pauseWhenBuffering` are not supported. Named sequences appear in the Studio timeline. `calculateMetadata()` and cloud rendering are not implemented.
 
-- **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
-- **Fonts.** Built-in `loadFont()` replaces `@remotion/fonts`: it registers a `FontFace`, holds the render until loaded, and deduplicates across hot reloads.
-- **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
-- **Not there yet:** `calculateMetadata()` and cloud rendering.
+### 3D with React Three Fiber
 
-freemotion is an independent project written from scratch, and it is not affiliated with Remotion.
+`@freemotion/three` provides `<ThreeCanvas width={width} height={height}>` for frame-driven R3F scenes. It accepts `camera`, `gl`, `onCreated`, styles and other Canvas props; the frame loop is controlled by freemotion. Install its peer dependencies `three`, `@react-three/fiber` 9, React 19 and React DOM 19. Suspense holds rendering until assets load. See the [package guide](packages/three/README.md) for a complete example. On headless systems, use `freemotion render MyComposition --gl swangle`.
+
+freemotion is an independent project and is not affiliated with Remotion.
 
 ## 🧪 Examples
 
@@ -530,7 +538,7 @@ freemotion is an independent project written from scratch, and it is not affilia
 
 - [x] Audio tracks and `<Audio>`
 - [x] Transparent output (ProRes 4444, VP9 with alpha)
-- [ ] `<Video>` with frame-accurate seeking
+- [x] `<Video>` with frame-accurate seeking
 - [ ] A render button and a props editor in the studio
 - [ ] More `freemotion init` templates
 
