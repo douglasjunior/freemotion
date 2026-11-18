@@ -4,7 +4,8 @@ import { Component, Suspense, useCallback, useLayoutEffect, useRef, type ReactNo
 import { WebGLRenderer, type WebGLRendererParameters } from 'three';
 
 
-export type ThreeCanvasProps = Omit<CanvasProps, 'frameloop'> & {
+export type ThreeCanvasProps = Omit<CanvasProps, 'frameloop' | 'gl'> & {
+  readonly gl?: Partial<WebGLRendererParameters>;
   readonly width: number;
   readonly height: number;
   readonly children?: ReactNode;
@@ -70,7 +71,7 @@ export function ThreeCanvas({ width, height, children, style, gl, ...props }: Th
         frameloop="never"
         gl={(defaults) => {
           try {
-            return new WebGLRenderer({ ...defaults, preserveDrawingBuffer: true, ...(gl as WebGLRendererParameters) });
+            return new WebGLRenderer({ ...defaults, preserveDrawingBuffer: true, ...gl });
           } catch (cause) {
             throw new Error('freemotion: Failed to initialize WebGL context for <ThreeCanvas>. If you are running in a headless or CI environment without a GPU, pass the \'--gl swangle\' flag to freemotion render.', { cause });
           }
