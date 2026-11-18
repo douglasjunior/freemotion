@@ -87,6 +87,8 @@ Options
   --silent-audio              Add a silent audio track when no audio is present (or when --muted)
   --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
   --concurrency <n>           Browser tabs rendering in parallel (default: ${defaultConcurrency()})
+  --recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
+  --timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
   --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
   --config <file>             Vite config to merge (default: vite.config.* in the project)
@@ -243,6 +245,8 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'audio-codec': { type: 'string' },
           overwrite: { type: 'boolean' },
           concurrency: { type: 'string' },
+          'recycle-tabs': { type: 'string' },
+          timeout: { type: 'string' },
           'video-cache-mb': { type: 'string' },
           entry: { type: 'string' },
           config: { type: 'string' },
@@ -384,6 +388,8 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           audioCodec: values['audio-codec'] as AudioCodec | undefined,
           overwrite: values.overwrite ?? true,
           concurrency: integer(values.concurrency, '--concurrency', 1) ?? defaultConcurrency(),
+          recycleTabs: values['recycle-tabs'] === undefined ? 1000 : integer(values['recycle-tabs'], '--recycle-tabs', 0),
+          timeout: integer(values.timeout, '--timeout', 1000),
           videoCacheMb: integer(values['video-cache-mb'], '--video-cache-mb', 1),
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,
           browserExecutable: values['browser-executable'],

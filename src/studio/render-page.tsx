@@ -5,7 +5,7 @@ import compositions from 'virtual:freemotion/entry';
 
 import { beginAudioFrame, collectAudio } from '../runtime/audio-registry.js';
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
-import { waitForRenderHolds } from '../runtime/delay-render.js';
+import { setDefaultRenderTimeout, waitForRenderHolds } from '../runtime/delay-render.js';
 import { setEnvironment } from '../runtime/environment.js';
 import { setRenderContext } from '../runtime/render-context.js';
 import { Stage } from '../runtime/stage.js';
@@ -36,6 +36,7 @@ function mount(id: string, props: Record<string, unknown> | null, options?: Moun
     throw new Error(`Unknown composition "${id}". Available: ${list.map(item => item.id).join(', ') || '(none)'}.`);
   }
   setRenderContext({ videoServerUrl: options?.videoServerUrl });
+  setDefaultRenderTimeout(options?.timeoutInMilliseconds ?? 30_000);
   mounted = { composition, props: { ...composition.defaultProps, ...props } };
   return meta(composition);
 }

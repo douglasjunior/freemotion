@@ -84,6 +84,10 @@ export type RenderOptions = {
   readonly proresProfile?: ProResProfile;
   /** Overwrite existing files (default: true). */
   readonly overwrite?: boolean;
+  /** Recreate each tab after n frames to bound memory. Default: 1000; 0 disables. */
+  readonly recycleTabs?: number;
+  /** Maximum wait time for delayRender holds in ms. Default: 30000. */
+  readonly timeout?: number;
   /** Mute all audio. */
   readonly muted?: boolean;
   /** Add silent audio stream when no audio assets are present. */
@@ -186,7 +190,12 @@ async function openTab(
   });
   const meta = await page.evaluate(
     ([name, compositionId, props, mountOptions]) => window[name as typeof RENDER_API_GLOBAL]!.mount(compositionId, props, mountOptions),
-    [RENDER_API_GLOBAL, id, options.props ?? null, { videoServerUrl }] as const,
+    [
+      RENDER_API_GLOBAL, id, options.props ?? null, {
+        videoServerUrl,
+        timeoutInMilliseconds: options.timeout,
+      },
+    ] as const,
   );
   await page.setViewportSize({ width: meta.width, height: meta.height });
   const cdp = await page.context().newCDPSession(page);
@@ -276,6 +285,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   }
   const jpegQuality = options.jpegQuality ?? 92;
 
+  const recycleAfter = options.recycleTabs ?? 1000;
   const tabOptions = { alpha: hasAlpha, imageFormat, jpegQuality };
   const first = await openTab(session, job.id, tabOptions);
   const { meta } = first;
@@ -283,11 +293,18 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   const { frames, fps } = planFrames(meta, options);
   const [width, height] = [meta.width * options.scale, meta.height * options.scale];
   if (format !== 'gif' && (width % 2 !== 0 || height % 2 !== 0)) {
+    await first.page.close().catch(() => undefined);
     throw new Error(`"${meta.id}" renders at ${width}×${height}; ${format.toUpperCase()} needs an even width and height.`);
   }
 
   const extra = Math.max(0, Math.min(options.concurrency, frames.length) - 1);
   const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id, tabOptions))))];
+
+  type TabSlot = {
+    tab: Tab;
+    capturedCount: number;
+  };
+  const slots: TabSlot[] = tabs.map(tab => ({ tab, capturedCount: 0 }));
 
   let jobTempDir: string | null = null;
   if (format !== 'gif') {
@@ -318,10 +335,26 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     try {
       await produceInOrder({
         frames,
-        workers: tabs,
-        ahead: tabs.length * 4,
-        produce: async (tab, frame) => {
-          const png = await capture(tab, frame);
+        workers: slots,
+        ahead: slots.length * 4,
+        produce: async (slot, frame) => {
+          if (recycleAfter > 0 && slot.capturedCount >= recycleAfter) {
+            if (slot.tab.errors.length > 0) {
+              throw slot.tab.errors[0];
+            }
+            if (format !== 'gif') {
+              await collector.collect(slot.tab.page);
+            }
+            if (slot.tab.errors.length > 0) {
+              throw slot.tab.errors[0];
+            }
+            await slot.tab.page.close().catch(() => undefined);
+            slot.tab = await openTab(session, job.id, tabOptions);
+            slot.capturedCount = 0;
+          }
+
+          const png = await capture(slot.tab, frame);
+          slot.capturedCount++;
           rendered++;
           reporter.event({ phase: 'render', id: job.id, done: rendered, total: frames.length });
           return png;
@@ -340,11 +373,17 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     const [code] = await exited;
 
     if (format !== 'gif') {
-      for (const tab of tabs) {
-        await collector.collect(tab.page);
+      for (const slot of slots) {
+        if (slot.tab.errors.length > 0) {
+          throw slot.tab.errors[0];
+        }
+        await collector.collect(slot.tab.page);
+        if (slot.tab.errors.length > 0) {
+          throw slot.tab.errors[0];
+        }
       }
     }
-    await Promise.all(tabs.map(tab => tab.page.close().catch(() => undefined)));
+    await Promise.all(slots.map(slot => slot.tab.page.close().catch(() => undefined)));
 
     if (code !== 0) {
       throw new Error(`ffmpeg exited with code ${code} while encoding "${job.id}".`);
@@ -437,7 +476,7 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
 
     return { id: job.id, output: job.output, format, frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
   } finally {
-    await Promise.all(tabs.map(tab => tab.page.close().catch(() => undefined)));
+    await Promise.all(slots.map(slot => slot.tab.page.close().catch(() => undefined)));
     if (jobTempDir) {
       await rm(jobTempDir, { recursive: true, force: true }).catch(() => undefined);
     }

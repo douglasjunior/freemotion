@@ -194,6 +194,8 @@ npx freemotion render --all                      # every composition, to out/
 --silent-audio              Add a silent audio track when no audio is present (or when --muted)
 --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
+--recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
+--timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
 --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
@@ -405,7 +407,7 @@ useEffect(() => {
 }, [handle]);
 ```
 
-The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })`).
+The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })` or globally via the `--timeout <ms>` CLI flag).
 
 ## 🔁 Coming from Remotion?
 

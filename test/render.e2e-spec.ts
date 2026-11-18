@@ -98,6 +98,17 @@ describe('freemotion render', () => {
     expectColor(centerPixel(output, 7), BLUE, 6);
   });
 
+  it('renders identically with aggressive tab recycling (--recycle-tabs 3)', async () => {
+    const output = join(OUT, 'recycle-colors.mp4');
+    const { code, stdout } = await run(['render', 'Colors', '--recycle-tabs', '3', '-o', output], FIXTURE);
+    expect(code).toBe(0);
+    expect(stdout).toContain('Colors · 10 frames');
+
+    expect(probe(output)).toMatchObject({ codec_name: 'h264', width: 64, height: 64, pix_fmt: 'yuv420p', nb_read_frames: '10', color_space: 'bt709' });
+    expectColor(centerPixel(output, 2), RED, 6);
+    expectColor(centerPixel(output, 7), BLUE, 6);
+  });
+
   it.runIf(hasEncoder('libvpx-vp9'))('renders a WebM with alpha and transparent corners', async () => {
     const output = join(OUT, 'alpha.webm');
     const { code } = await run([
@@ -166,6 +177,35 @@ describe('freemotion render', () => {
       const { code, stderr } = await run(['render', 'Colors', '--ffmpeg', '/nonexistent/ffmpeg'], FIXTURE);
       expect(code).toBe(1);
       expect(stderr).toContain('ffmpeg was not found');
+    });
+
+    it('fails when a delayRender hold exceeds --timeout and passes when --timeout is larger', async () => {
+      const slowFailOutput = join(OUT, 'slow-hold-fail.mp4');
+      const { code: failCode, stderr: failStderr } = await run(
+        ['render', 'SlowHold', '--entry', 'src/broken.tsx', '--timeout', '1000', '-o', slowFailOutput],
+        FIXTURE,
+      );
+      expect(failCode).toBe(1);
+      expect(failStderr).toContain('"slow hold" was not released with continueRender() within 1000 ms.');
+
+      const slowPassOutput = join(OUT, 'slow-hold-pass.mp4');
+      const { code: passCode } = await run(
+        ['render', 'SlowHold', '--entry', 'src/broken.tsx', '--timeout', '3000', '-o', slowPassOutput],
+        FIXTURE,
+      );
+      expect(passCode).toBe(0);
+      expect(probe(slowPassOutput)).toMatchObject({ width: 64, height: 64, nb_read_frames: '2' });
+      expectColor(centerPixel(slowPassOutput, 0), GREEN, 6);
+    });
+
+    it('fails the render if an error occurs on a recycled tab', async () => {
+      const output = join(OUT, 'async-error.mp4');
+      const { code, stderr } = await run(
+        ['render', 'AsyncError', '--entry', 'src/broken.tsx', '--recycle-tabs', '2', '-o', output],
+        FIXTURE,
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain('error on old tab');
     });
   });
 

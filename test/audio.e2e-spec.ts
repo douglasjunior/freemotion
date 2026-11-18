@@ -312,4 +312,31 @@ describe('Audio rendering pipeline e2e', () => {
     const activeRms = computeRms(pcm, 4800, 43200);
     expect(activeRms).toBeGreaterThan(0.2);
   });
+
+  it('preserves all audio assets across tab lifecycles with --recycle-tabs', async () => {
+    const output = join(OUT, 'RecycledAudio.mp4');
+    const { code, stderr } = await run(
+      ['render', 'NarrationAudio', '--entry', 'src/audio.tsx', '--recycle-tabs', '3', '-o', output],
+      FIXTURE,
+    );
+    expect(code, stderr).toBe(0);
+
+    const audioStreams = probeAudioStreams(output);
+    expect(audioStreams).toHaveLength(1);
+    expect(audioStreams[0]).toMatchObject({
+      codec_name: 'aac',
+      sample_rate: '48000',
+      channels: 2,
+    });
+
+    const pcm = readPcmMono(output);
+    expect(pcm.length).toBeCloseTo(96000, -3);
+
+    const onset = findOnsetSample(pcm);
+    expect(onset).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(onset - 48000)).toBeLessThanOrEqual(1600);
+
+    const activeRms = computeRms(pcm, 50400, 86400);
+    expect(activeRms).toBeGreaterThan(0.5);
+  });
 });

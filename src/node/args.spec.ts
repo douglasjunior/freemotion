@@ -133,6 +133,21 @@ describe('parseCommand', () => {
     });
   });
 
+  it('parses --recycle-tabs and --timeout with defaults', () => {
+    expect(parse('render', 'Intro')).toMatchObject({
+      options: { recycleTabs: 1000, timeout: undefined },
+    });
+    expect(parse('render', 'Intro', '--recycle-tabs', '0')).toMatchObject({
+      options: { recycleTabs: 0 },
+    });
+    expect(parse('render', 'Intro', '--recycle-tabs', '50')).toMatchObject({
+      options: { recycleTabs: 50 },
+    });
+    expect(parse('render', 'Intro', '--timeout', '5000')).toMatchObject({
+      options: { timeout: 5000 },
+    });
+  });
+
   it.each([
     [['render'], /Which composition/],
     [['render', 'A', '--all'], /not both/],
@@ -173,6 +188,13 @@ describe('parseCommand', () => {
     [['render', 'A', '-o', 'out.webm', '--audio-codec', 'aac'], /Format "webm" does not support audio codec "aac"/],
     [['render', 'A', '-o', 'out.gif', '--audio-codec', 'aac'], /Format "gif" does not support --audio-codec/],
     [['render', 'A', '--frame', '0', '--audio-codec', 'aac'], /Format "png" does not support --audio-codec/],
+    [['render', 'A', '--recycle-tabs=-1'], /--recycle-tabs must be an integer of at least 0/],
+    [['render', 'A', '--recycle-tabs', 'abc'], /--recycle-tabs must be an integer of at least 0/],
+    [['render', 'A', '--recycle-tabs', '1.5'], /--recycle-tabs must be an integer of at least 0/],
+    [['render', 'A', '--timeout', '0'], /--timeout must be an integer of at least 1000/],
+    [['render', 'A', '--timeout', '999'], /--timeout must be an integer of at least 1000/],
+    [['render', 'A', '--timeout=-10'], /--timeout must be an integer of at least 1000/],
+    [['render', 'A', '--timeout', 'abc'], /--timeout must be an integer of at least 1000/],
     [['render', 'A', '--progress', 'invalid'], /--progress must be json/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
