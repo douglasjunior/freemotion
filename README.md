@@ -336,6 +336,7 @@ Everything is exported from `freemotion`.
 | `<AbsoluteFill>` | A full-size, absolutely positioned flex column. The basic layer. |
 | `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
+| `<Freeze frame active?>` | Freezes time for its children at `frame`. Inside it, `<Video>` displays the frozen frame and `<Audio>` stays silent. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
 | `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
 | `<Video src trimBefore? playbackRate? transparent? volume?>` | Renders a video. In render mode, extracts exact frames from the video frame server. In preview mode, synchronizes an HTML `<video>` element. |
@@ -388,6 +389,24 @@ export const Soundtrack = () => (
 - **Volume control**: Can be a fixed number or a dynamic function `(frame: number) => number` evaluated against the component's local frame.
 - **Nested sequences**: Automatically tracks offsets across nested `<Sequence>` components.
 
+### Freezing time: `<Freeze>`
+
+`<Freeze>` locks time for its children at a specific frame:
+
+```tsx
+import { Freeze, Video, staticFile } from 'freemotion';
+
+export const StillShot = () => (
+  <Freeze frame={45}>
+    <Video src={staticFile('clip.mp4')} />
+  </Freeze>
+);
+```
+
+- **Frozen state**: Children observe `useCurrentFrame() === frame` regardless of the parent frame.
+- **Video & Audio**: `<Video>` locks on the specified frame and remains paused in preview; `<Audio>` tracks remain silent and do not register audio during render.
+- **Toggle with `active`**: Set `active={false}` (default `true`) to pass the dynamic parent frame through untouched.
+
 ### Async data: `delayRender()`
 
 ```tsx
@@ -416,7 +435,7 @@ freemotion keeps the names you already know, so most components move over by cha
 + import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
 ```
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Freeze`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
 
 What's different:
 

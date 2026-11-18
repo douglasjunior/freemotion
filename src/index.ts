@@ -10,6 +10,7 @@ export { cancelRender, continueRender, delayRender, type DelayRenderOptions } fr
 export { Easing, type EasingFunction } from './runtime/easing.js';
 export { getEnvironment, type Environment } from './runtime/environment.js';
 export { useAbsoluteFrame, useCurrentFrame, usePremounting, useVideoConfig, type VideoConfig } from './runtime/frame.js';
+export { Freeze, type FreezeProps } from './runtime/freeze.js';
 export { Img, type ImgProps } from './runtime/img.js';
 export { interpolate, type ExtrapolateType, type InterpolateOptions } from './runtime/interpolate.js';
 export { PlaybackProvider, usePlayback, type PlaybackState } from './runtime/playback.js';
