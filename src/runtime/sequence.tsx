@@ -79,7 +79,7 @@ export const Sequence = ({
       frozen={effectiveFrozen}
       premounting={isPremounting}
     >
-      <DepthContext.Provider value={depth + 1}>{children}</DepthContext.Provider>
+      {getEnvironment().isStudio ? <DepthContext.Provider value={depth + 1}>{children}</DepthContext.Provider> : children}
     </FrameProvider>
   );
 
