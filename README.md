@@ -300,6 +300,7 @@ Everything is exported from `freemotion`.
 | `<Sequence from durationInFrames layout>` | Shifts time for its children and mounts them only during its window. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
+| `loadFont({ family, url, weight?, style?, display? })` | Loads a font via `FontFace`, holds the render until ready, and adds it to `document.fonts`. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
 | `random(seed)` | A deterministic number in `[0, 1)` for a seed. |
@@ -327,6 +328,22 @@ useEffect(() => {
 
 The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })`).
 
+### Custom fonts: `loadFont()`
+
+Call `loadFont()` at the module top level to register and load a font before rendering:
+
+```tsx
+import { loadFont, staticFile } from 'freemotion';
+
+loadFont({
+  family: 'Inter',
+  url: staticFile('inter.woff2'),
+  weight: 400,
+});
+```
+
+`loadFont()` creates a `FontFace`, adds it to `document.fonts`, and takes a render hold until the font is loaded. Duplicate calls with identical parameters are reused. In non-browser environments (SSR, Node tests), it resolves immediately.
+
 ## 🔁 Coming from Remotion?
 
 freemotion keeps the names you already know, so most components move over by changing the import:
@@ -341,6 +358,7 @@ Same names: `useCurrentFrame`, `useVideoConfig`, `interpolate`, `spring`, `Easin
 What's different:
 
 - **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
+- **Fonts.** Built-in `loadFont()` replaces `@remotion/fonts`: it registers a `FontFace`, holds the render until loaded, and deduplicates across hot reloads.
 - **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
 - **Not there yet:** audio, `<Video>`/`<OffthreadVideo>`, transparent video, `calculateMetadata()` and cloud rendering.
 
