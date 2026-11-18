@@ -184,6 +184,8 @@ npx freemotion render --all                      # every composition, to out/
 --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
+--gl <backend>              WebGL backend: angle, swangle, egl, swiftshader, vulkan
+--no-download               Fail if the browser is not installed instead of downloading it
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
@@ -212,6 +214,28 @@ What to know:
 - **Size grows with change.** A value that moves every frame costs one keyframe per frame. Elements whose attributes CSS can't animate (a `<path d>` that morphs, an `<img src>` that swaps) are written once per distinct value. `--every-nth-frame 2` halves all of it. Fonts are embedded only for the faces and the characters the video uses, but a font family can still weigh a few hundred KB.
 - **Not everything survives.** `<canvas>` is captured as one image per frame (heavy), `<video>` and WebGL don't play, shadow DOM is not recorded, and stylesheet rules must target elements inside the composition (`body` and `html` don't exist in the file). Where the composition paints nothing, the SVG is transparent, where a video would be white.
 - **Timing is frame-exact.** Each keyframe holds for one frame of the original frame rate, like the video. The `--scale`, `--crf` and `--concurrency` options don't apply.
+
+### Browser and WebGL (`--gl`, `browser ensure`, `--no-download`)
+
+To control browser downloads in CI or headless environments and support WebGL (such as Three.js / React Three Fiber):
+
+- **`freemotion browser ensure`**: downloads or verifies the bundled Chromium headless shell ahead of time and exits with 0.
+  ```bash
+  npx freemotion browser ensure
+  ```
+- **`--no-download`**: disables automatic on-demand downloads during `freemotion render`. If the browser is missing, it fails fast with an explicit error:
+  ```bash
+  npx freemotion render MyVideo --no-download
+  ```
+- **`--gl <backend>`**: selects the WebGL rendering backend for Chromium. On headless Linux machines without physical GPUs, `swangle` uses SwiftShader software rasterization under ANGLE.
+
+| Backend | Chromium flags | Renderer (`WEBGL_debug_renderer_info`) | Notes |
+|---|---|---|---|
+| `angle` | `--use-gl=angle --use-angle=gl` | ANGLE / SwiftShader or GPU driver | Default ANGLE on systems with OpenGL. Breaks headless 2D capture on GPU-less Linux. |
+| `swangle` | `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` | ANGLE (Google, SwiftShader) | Software rasterizer via SwiftShader under ANGLE. Recommended for headless CI and environments without GPU. |
+| `egl` | `--use-gl=egl` | ANGLE / EGL driver | Native EGL backend. |
+| `swiftshader` | `--use-gl=swiftshader --enable-unsafe-swiftshader` | SwiftShader | Direct SwiftShader software GL. |
+| `vulkan` | `--use-angle=vulkan --use-vulkan=native --disable-vulkan-fallback-to-gl-for-testing` | Native Vulkan driver | Hardware Vulkan backend without GL fallback. Requires native GPU Vulkan support. |
 
 ### Tips for identical renders everywhere
 

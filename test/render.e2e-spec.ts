@@ -107,5 +107,15 @@ describe('freemotion render', () => {
       expect(code).toBe(1);
       expect(stderr).toContain('ffmpeg was not found');
     });
+
+    it('explains a missing browser with --no-download', async () => {
+      const { code, stderr } = await run(
+        ['render', 'Colors', '--no-download'],
+        FIXTURE,
+        { PLAYWRIGHT_BROWSERS_PATH: '/tmp/nonexistent-playwright-browsers' },
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain('O navegador não está instalado. Rode freemotion browser ensure ou passe --browser-executable.');
+    });
   });
 });

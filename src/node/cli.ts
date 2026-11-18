@@ -2,6 +2,7 @@
 import { relative } from 'node:path';
 
 import { HELP, parseCommand } from './args.js';
+import { ensureBrowser } from './browser.js';
 import { detectPackageManager, init } from './init.js';
 import { createLogger } from './logger.js';
 import { packageVersion } from './paths.js';
@@ -49,6 +50,10 @@ async function main(argv: readonly string[]): Promise<void> {
 
     case 'render':
       await render({ ...command.options, log: createLogger({ quiet: command.quiet }) });
+      return;
+
+    case 'browser':
+      await ensureBrowser({ ...command.options, log: createLogger().info });
       return;
   }
 }
