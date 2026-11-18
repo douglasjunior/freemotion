@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseAudioProbeInfo } from './probe.js';
+import { parseAudioProbeInfo, probeAudioMedia } from './probe.js';
 
 
 describe('probeAudioMedia / parseAudioProbeInfo', () => {
@@ -41,5 +41,11 @@ Input #0, mp3, from 'track.mp3':
     expect(info.hasAudio).toBe(true);
     expect(info.duration).toBeCloseTo(195.5);
     expect(info.sampleRate).toBe(44100);
+  });
+
+  it('throws descriptive error when media file does not exist', async () => {
+    await expect(probeAudioMedia('/tmp/non_existent_audio_file_12345.mp3')).rejects.toThrow(
+      /audio file not found/,
+    );
   });
 });

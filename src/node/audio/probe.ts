@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 
 import type { AudioProbeInfo } from './audio-plan.js';
 
@@ -29,8 +30,15 @@ export function parseAudioProbeInfo(stderr: string): AudioProbeInfo {
 
 /**
  * Probes any media file (audio or video) for audio streams and duration via ffmpeg.
+ * Throws if the file does not exist.
  */
 export async function probeAudioMedia(filePath: string, ffmpeg = 'ffmpeg'): Promise<AudioProbeInfo> {
+  try {
+    await stat(filePath);
+  } catch {
+    throw new Error(`freemotion: audio file not found: "${filePath}".`);
+  }
+
   return new Promise<AudioProbeInfo>((resolve, reject) => {
     const proc = spawn(ffmpeg, ['-hide_banner', '-i', filePath]);
     let stderr = '';

@@ -28,6 +28,25 @@ function generateSine(path: string, durationSec = 2, freq = 1000): Promise<void>
   });
 }
 
+function generateSilenceThenTone(path: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'anullsrc=r=48000:cl=stereo:d=0.5',
+      '-f', 'lavfi',
+      '-i', 'sine=frequency=1000:duration=0.5',
+      '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1,volume=8',
+      '-c:a', 'pcm_s16le',
+      path,
+    ]);
+    proc.on('error', reject);
+    proc.on('close', code => (code === 0 ? resolve() : reject(new Error(`Failed with code ${code}`))));
+  });
+}
+
 function readPcmMono(path: string, sampleRate = 48000): Promise<Float32Array> {
   return new Promise<Float32Array>((resolve, reject) => {
     const proc = spawn('ffmpeg', [
@@ -72,13 +91,16 @@ describe('run-audio (ffmpeg integration)', () => {
   let testDir: string;
   let sine1s: string;
   let sine3s: string;
+  let silenceThenTone: string;
 
   beforeAll(async () => {
     testDir = await mkdtemp(join(tmpdir(), 'freemotion-run-audio-'));
     sine1s = join(testDir, 'sine_1s.wav');
     sine3s = join(testDir, 'sine_3s.wav');
+    silenceThenTone = join(testDir, 'silence_then_tone.wav');
     await generateSine(sine1s, 1, 1000);
     await generateSine(sine3s, 3, 1000);
+    await generateSilenceThenTone(silenceThenTone);
   });
 
   afterAll(async () => {
@@ -219,6 +241,57 @@ describe('run-audio (ffmpeg integration)', () => {
     expect(rms0).toBeLessThan(rms1);
     expect(rms1).toBeLessThan(rms2);
     expect(rms2).toBeLessThan(rms3);
+
+    // Assert measured values against expected curve (ramp from 0 to 1 with peak RMS ~0.707)
+    // Quarter 1 (0 to 0.25): expected RMS ~ 0.088
+    expect(rms0).toBeCloseTo(0.088, 1);
+    // Quarter 4 (0.75 to 1.0): expected RMS ~ 0.62
+    expect(rms3).toBeGreaterThan(0.5);
+  });
+
+  it('modulates volume envelope with timeline offset without cutting audio tail', async () => {
+    // Sound starts at frame 30 (1.0s delay at 30 fps), with a ramp from 0 to 1 across 30 frames (1.0s)
+    const rampDelayed: AudioAsset = {
+      id: 'ramp_delayed',
+      src: sine3s,
+      startFrame: 30,
+      trimBefore: 0,
+      playbackRate: 1,
+      loop: false,
+      volumes: [
+        [30, 0.0],
+        [59, 1.0],
+      ],
+    };
+
+    const plan = await planAudio({
+      assets: [rampDelayed],
+      fps: 30,
+      range: { from: 0, to: 60 }, // 2.0s total
+      probe: probeAudioMedia,
+      tempDir: testDir,
+    });
+
+    const out = await mixAudio(plan);
+    const pcm = await readPcmMono(out);
+
+    expect(pcm.length).toBeCloseTo(96000, -3);
+
+    // Before frame 29 (sample 46400), should be near silent
+    const preOnsetRms = computeRms(pcm, 0, 46400);
+    expect(preOnsetRms).toBeLessThan(0.01);
+
+    // From sample 48000 to 96000 (1.0s to 2.0s), compute RMS across 3 segments
+    const third = Math.floor(48000 / 3);
+    const rms1 = computeRms(pcm, 48000, 48000 + third);
+    const rms2 = computeRms(pcm, 48000 + third, 48000 + third * 2);
+    const rms3 = computeRms(pcm, 48000 + third * 2, 96000);
+
+    expect(rms1).toBeLessThan(rms2);
+    expect(rms2).toBeLessThan(rms3);
+
+    // The tail (last 330ms up to 2.0s) MUST be active (proving tail was not cut by delay before amultiply)
+    expect(rms3).toBeGreaterThan(0.4);
   });
 
   it('repeats audio with loop: true', async () => {
@@ -252,25 +325,26 @@ describe('run-audio (ffmpeg integration)', () => {
     expect(sec2Rms).toBeGreaterThan(0.5);
   });
 
-  it('skips beginning with trimBefore', async () => {
-    // trimBefore 15 frames = 0.5s, active for 30 frames
-    const trimAsset: AudioAsset = {
-      id: 'trim_test',
+  it('correctly handles loop when rendering a segment starting after 1+ loop cycles', async () => {
+    // 1-second loop (30 frames at 30 fps)
+    // Render range from frame 60 to 90 (2.0s to 3.0s, starting in cycle 3)
+    const loopSegmentAsset: AudioAsset = {
+      id: 'loop_segment',
       src: sine1s,
       startFrame: 0,
-      trimBefore: 15,
+      trimBefore: 0,
       playbackRate: 1,
-      loop: false,
+      loop: true,
       volumes: [
-        [0, 1.0],
-        [29, 1.0],
+        [60, 1.0],
+        [89, 1.0],
       ],
     };
 
     const plan = await planAudio({
-      assets: [trimAsset],
+      assets: [loopSegmentAsset],
       fps: 30,
-      range: { from: 0, to: 30 },
+      range: { from: 60, to: 90 }, // 1.0 second duration
       probe: probeAudioMedia,
       tempDir: testDir,
     });
@@ -278,24 +352,56 @@ describe('run-audio (ffmpeg integration)', () => {
     const out = await mixAudio(plan);
     const pcm = await readPcmMono(out);
 
-    // Audio starts playing immediately at 0s
-    const onsetRms = computeRms(pcm, 0, 10000);
-    expect(onsetRms).toBeGreaterThan(0.5);
+    expect(pcm.length).toBeCloseTo(48000, -3);
+    const activeRms = computeRms(pcm, 5000, 40000);
+    expect(activeRms).toBeGreaterThan(0.5);
   });
 
-  it('successfully batches and mixes 35 assets without hitting descriptor or argument limits', async () => {
+  it('skips beginning with trimBefore on non-uniform media', async () => {
+    // silenceThenTone has 0.5s silence followed by 0.5s of 1 kHz tone.
+    // trimBefore: 15 frames at 30 fps = 0.5s skipped.
+    const trimAsset: AudioAsset = {
+      id: 'trim_test',
+      src: silenceThenTone,
+      startFrame: 0,
+      trimBefore: 15, // skips the 0.5s silence!
+      playbackRate: 1,
+      loop: false,
+      volumes: [
+        [0, 1.0],
+        [14, 1.0],
+      ],
+    };
+
+    const plan = await planAudio({
+      assets: [trimAsset],
+      fps: 30,
+      range: { from: 0, to: 15 }, // 0.5s total duration
+      probe: probeAudioMedia,
+      tempDir: testDir,
+    });
+
+    const out = await mixAudio(plan);
+    const pcm = await readPcmMono(out);
+
+    // Audio should start immediately with the tone, not silence!
+    const onsetRms = computeRms(pcm, 0, 10000);
+    expect(onsetRms).toBeGreaterThan(0.4);
+  });
+
+  it('successfully batches and mixes 200 assets without hitting descriptor or argument limits', async () => {
     const assets: AudioAsset[] = [];
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 200; i++) {
       assets.push({
         id: `batch_asset_${i}`,
         src: sine1s,
-        startFrame: i * 2,
+        startFrame: (i % 50) * 2,
         trimBefore: 0,
         playbackRate: 1,
         loop: false,
         volumes: [
-          [i * 2, 0.2],
-          [i * 2 + 15, 0.2],
+          [(i % 50) * 2, 0.05],
+          [(i % 50) * 2 + 10, 0.05],
         ],
       });
     }
@@ -308,13 +414,18 @@ describe('run-audio (ffmpeg integration)', () => {
       tempDir: testDir,
     });
 
-    expect(plan.passes.length).toBe(3); // 2 batches + 1 combiner
+    // 200 / 32 = 6.25 -> 7 batch passes + 1 combiner pass = 8 passes total
+    expect(plan.passes.length).toBe(8);
+    for (const pass of plan.passes) {
+      const inputCount = pass.args.filter(a => a === '-i').length;
+      expect(inputCount).toBeLessThanOrEqual(32);
+    }
 
     const out = await mixAudio(plan);
     const pcm = await readPcmMono(out);
 
     expect(pcm.length).toBeCloseTo((100 / 30) * 48000, -3);
     const mixedRms = computeRms(pcm, 20000, 80000);
-    expect(mixedRms).toBeGreaterThan(0.1);
+    expect(mixedRms).toBeGreaterThan(0.01);
   });
 });

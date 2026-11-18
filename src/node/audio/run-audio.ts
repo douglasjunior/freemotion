@@ -21,22 +21,22 @@ export async function mixAudio(
   const ffmpeg = options.ffmpeg ?? 'ffmpeg';
   const shouldCleanup = options.cleanup ?? true;
 
-  // 1. Write envelope files
-  for (const envFile of plan.envelopeFiles) {
-    await writeFile(
-      envFile.path,
-      Buffer.from(envFile.data.buffer, envFile.data.byteOffset, envFile.data.byteLength),
-    );
-  }
-
-  // 2. Write filter_complex_script files if present
-  for (const pass of plan.passes) {
-    if (pass.filterComplexScript) {
-      await writeFile(pass.filterComplexScript.path, pass.filterComplexScript.content, 'utf8');
-    }
-  }
-
   try {
+    // 1. Write envelope files
+    for (const envFile of plan.envelopeFiles) {
+      await writeFile(
+        envFile.path,
+        Buffer.from(envFile.data.buffer, envFile.data.byteOffset, envFile.data.byteLength),
+      );
+    }
+
+    // 2. Write filter_complex_script files if present
+    for (const pass of plan.passes) {
+      if (pass.filterComplexScript) {
+        await writeFile(pass.filterComplexScript.path, pass.filterComplexScript.content, 'utf8');
+      }
+    }
+
     // 3. Execute all passes in sequence
     for (const pass of plan.passes) {
       const fullArgs = ['-hide_banner', '-loglevel', 'error', '-y', ...pass.args];

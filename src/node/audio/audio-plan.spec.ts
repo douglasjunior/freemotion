@@ -197,6 +197,112 @@ describe('audio-plan', () => {
       expect(filterStr).toContain('pan=stereo|c0=c0|c1=c0');
     });
 
+    it('applies adelay AFTER amultiply for variable volume assets with timeline offset', async () => {
+      const asset: AudioAsset = {
+        id: 'delayed_var_vol',
+        src: 'fade.mp3',
+        startFrame: 30, // 1000ms delay at 30 fps
+        trimBefore: 0,
+        playbackRate: 1,
+        loop: false,
+        volumes: [
+          [30, 0.2],
+          [59, 1.0],
+        ],
+      };
+
+      const plan = await planAudio({
+        assets: [asset],
+        fps: 30,
+        range: { from: 0, to: 60 },
+        probe: mockProbe,
+        tempDir: '/tmp/test_audio',
+      });
+
+      const pass = plan.passes[0]!;
+      const filterIdx = pass.args.indexOf('-filter_complex');
+      const filterStr = pass.args[filterIdx + 1]!;
+
+      // Pre-volume chain MUST NOT have adelay
+      const preVolLine = filterStr.split(';\n').find(l => l.includes('[pre_vol_0]'))!;
+      expect(preVolLine).not.toContain('adelay');
+
+      // Post-multiply chain MUST apply adelay
+      const postMulLine = filterStr.split(';\n').find(l => l.includes('amultiply'))!;
+      expect(postMulLine).toContain('amultiply,adelay=1000|1000[a_0]');
+    });
+
+    it('wraps source offset modulo loop duration when rendering segment starting after loop cycles', async () => {
+      // Loop duration: trimAfter 60 frames (2.0s) - trimBefore 0 = 2.0s
+      // Rendering segment from frame 150 (5.0s, which is 2.5 cycles in)
+      // Modulo offset: 5.0s % 2.0s = 1.0s
+      const asset: AudioAsset = {
+        id: 'looped_segment',
+        src: 'loop.mp3',
+        startFrame: 0,
+        trimBefore: 0,
+        trimAfter: 60,
+        playbackRate: 1,
+        loop: true,
+        volumes: [
+          [150, 1.0],
+          [209, 1.0],
+        ],
+      };
+
+      const plan = await planAudio({
+        assets: [asset],
+        fps: 30,
+        range: { from: 150, to: 210 },
+        probe: mockProbe,
+        tempDir: '/tmp/test_audio',
+      });
+
+      const pass = plan.passes[0]!;
+      const filterIdx = pass.args.indexOf('-filter_complex');
+      const filterStr = pass.args[filterIdx + 1]!;
+
+      // 5.0s % 2.0s = 1.0s (not 5.0s!)
+      expect(filterStr).toContain('atrim=start=1.000000');
+    });
+
+    it('caches probe results across multiple assets sharing the same src', async () => {
+      let probeCallCount = 0;
+      const countingProbe = async () => {
+        probeCallCount++;
+        return { hasAudio: true, duration: 60, sampleRate: 48000 };
+      };
+
+      const asset1: AudioAsset = {
+        id: 'a1',
+        src: 'shared.mp3',
+        startFrame: 0,
+        trimBefore: 0,
+        playbackRate: 1,
+        loop: false,
+        volumes: [[0, 1]],
+      };
+      const asset2: AudioAsset = {
+        id: 'a2',
+        src: 'shared.mp3',
+        startFrame: 10,
+        trimBefore: 0,
+        playbackRate: 1,
+        loop: false,
+        volumes: [[10, 1]],
+      };
+
+      await planAudio({
+        assets: [asset1, asset2],
+        fps: 30,
+        range: { from: 0, to: 30 },
+        probe: countingProbe,
+        tempDir: '/tmp/test_audio',
+      });
+
+      expect(probeCallCount).toBe(1);
+    });
+
     it('generates aloop filter with sample count for looped assets', async () => {
       const asset: AudioAsset = {
         id: 'looped_asset',

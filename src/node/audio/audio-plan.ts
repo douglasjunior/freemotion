@@ -100,6 +100,7 @@ export async function planAudio({
 }: PlanAudioOptions): Promise<AudioPlan> {
   const warnings: string[] = [];
   const envelopeFiles: EnvelopeFile[] = [];
+  const probeCache = new Map<string, AudioProbeInfo | undefined>();
 
   const rangeFrom = range?.from ?? 0;
   const rangeTo = range?.to;
@@ -111,7 +112,12 @@ export async function planAudio({
       continue;
     }
 
-    const info = await probe(asset.src);
+    let info = probeCache.get(asset.src);
+    if (!probeCache.has(asset.src)) {
+      info = await probe(asset.src);
+      probeCache.set(asset.src, info);
+    }
+
     if (!info || !info.hasAudio) {
       warnings.push(`freemotion: discarded audio asset "${asset.src}" (no audio stream found).`);
       continue;
@@ -130,12 +136,10 @@ export async function planAudio({
     const outputTimeSec = Math.max(0, (effectiveFrom - rangeFrom) / fps);
     const outputDurationSec = (effectiveTo - effectiveFrom) / fps;
 
-    const sourceStartSec = (asset.trimBefore / fps)
-      + ((effectiveFrom - asset.startFrame) * asset.playbackRate / fps);
-
     let loopSamples: number | undefined;
+    let loopDurationSec: number | undefined;
     if (asset.loop) {
-      const loopDurationSec = asset.trimAfter !== undefined
+      loopDurationSec = asset.trimAfter !== undefined
         ? (asset.trimAfter - asset.trimBefore) / fps
         : (info.duration - (asset.trimBefore / fps));
 
@@ -147,6 +151,13 @@ export async function planAudio({
       const assetSampleRate = info.sampleRate || sampleRate;
       loopSamples = Math.round(loopDurationSec * assetSampleRate);
     }
+
+    const elapsedSrc = ((effectiveFrom - asset.startFrame) * asset.playbackRate) / fps;
+    const offsetInLoop = (asset.loop && loopDurationSec !== undefined && loopDurationSec > 0)
+      ? ((elapsedSrc % loopDurationSec) + loopDurationSec) % loopDurationSec
+      : elapsedSrc;
+
+    const sourceStartSec = (asset.trimBefore / fps) + offsetInLoop;
 
     const volCheck = isConstantVolume(asset.volumes);
     let envelopeData: Float32Array | undefined;
@@ -279,11 +290,11 @@ export async function planAudio({
       // 6. Delay within this pass
       const delaySec = Math.max(0, item.outputTimeSec - timelineOffsetSec);
       const delayMs = Math.round(delaySec * 1000);
-      if (delayMs > 0) {
-        filters.push(`adelay=${delayMs}|${delayMs}`);
-      }
 
       if (item.isConstant) {
+        if (delayMs > 0) {
+          filters.push(`adelay=${delayMs}|${delayMs}`);
+        }
         const outLabel = `a_${i}`;
         filterLines.push(`[${audioInputIdx}:a]${filters.join(',')}[${outLabel}]`);
         outputLabels.push(`[${outLabel}]`);
@@ -295,7 +306,11 @@ export async function planAudio({
         filterLines.push(
           `[${envInputIdx}:a]aresample=${sampleRate},aformat=sample_fmts=fltp,pan=stereo|c0=c0|c1=c0[${envLabel}]`,
         );
-        filterLines.push(`[${preVolLabel}][${envLabel}]amultiply[${outLabel}]`);
+        const postMulFilters = ['amultiply'];
+        if (delayMs > 0) {
+          postMulFilters.push(`adelay=${delayMs}|${delayMs}`);
+        }
+        filterLines.push(`[${preVolLabel}][${envLabel}]${postMulFilters.join(',')}[${outLabel}]`);
         outputLabels.push(`[${outLabel}]`);
       }
     }
