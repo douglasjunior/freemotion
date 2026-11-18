@@ -40,6 +40,19 @@ export function centerPixel(file: string, index = 0): [number, number, number] {
   return [raw[offset]!, raw[offset + 1]!, raw[offset + 2]!];
 }
 
+/** RGBA of pixel at `(x, y)` of frame `index` of an image or video file. */
+export function pixelAt(file: string, x: number, y: number, index = 0): [number, number, number, number] {
+  const { width, codec_name } = probe(file);
+  const decoder = codec_name === 'vp9' ? ['-c:v', 'libvpx-vp9'] : [];
+  const raw = execFileSync('ffmpeg', [
+    '-v', 'error', ...decoder, '-i', file,
+    '-vf', `select=eq(n\\,${index})`, '-frames:v', '1',
+    '-f', 'rawvideo', '-pix_fmt', 'rgba', '-',
+  ], { maxBuffer: 64 * 1024 * 1024 });
+  const offset = (y * width + x) * 4;
+  return [raw[offset]!, raw[offset + 1]!, raw[offset + 2]!, raw[offset + 3]!];
+}
+
 export function hasEncoder(name: string): boolean {
   return spawnSync('ffmpeg', ['-hide_banner', '-encoders'], { encoding: 'utf8' }).stdout.includes(name);
 }

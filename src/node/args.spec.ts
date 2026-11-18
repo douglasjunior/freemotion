@@ -46,7 +46,20 @@ describe('parseCommand', () => {
 
   it('parses every render option', () => {
     const command = parseCommand(
-      ['render', 'Intro', '-o', 'intro.gif', '--frames', '10-20', '--every-nth-frame', '2', '--props', '{"title":"Hi"}', '--scale', '2', '--crf', '20', '--concurrency', '3', '--quiet'],
+      [
+        'render', 'Intro',
+        '-o', 'intro.gif',
+        '--frames', '10-20',
+        '--every-nth-frame', '2',
+        '--props', '{"title":"Hi"}',
+        '--scale', '2',
+        '--crf', '20',
+        '--concurrency', '3',
+        '--quiet',
+        '--image-format', 'jpeg',
+        '--jpeg-quality', '85',
+        '--no-overwrite',
+      ],
       { cwd: '/project', env: { FREEMOTION_FFMPEG: '/opt/ffmpeg' } },
     );
     expect(command).toMatchObject({
@@ -61,7 +74,28 @@ describe('parseCommand', () => {
         crf: 20,
         concurrency: 3,
         ffmpeg: '/opt/ffmpeg',
+        imageFormat: 'jpeg',
+        jpegQuality: 85,
+        overwrite: false,
       },
+    });
+  });
+
+  it('parses encoding flags for mp4, webm and mov', () => {
+    expect(parse('render', 'Intro', '--codec', 'h265', '--pixel-format', 'yuv422p')).toMatchObject({
+      options: { codec: 'h265', pixelFormat: 'yuv422p' },
+    });
+    expect(parse('render', 'Intro', '-o', 'out.webm', '--codec', 'vp9', '--pixel-format', 'yuva420p')).toMatchObject({
+      options: { codec: 'vp9', pixelFormat: 'yuva420p' },
+    });
+    expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'prores', '--prores-profile', '4444')).toMatchObject({
+      options: { codec: 'prores', proresProfile: '4444' },
+    });
+    expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'h264')).toMatchObject({
+      options: { codec: 'h264' },
+    });
+    expect(parse('render', 'Intro', '--overwrite')).toMatchObject({
+      options: { overwrite: true },
     });
   });
 
@@ -78,6 +112,25 @@ describe('parseCommand', () => {
     [['render', 'A', '--scale', '0'], /--scale must be a positive/],
     [['render', 'A', '--concurrency', '0'], /--concurrency must be an integer of at least 1/],
     [['render', 'A', '--every-nth-frame', '0'], /--every-nth-frame must be an integer of at least 1/],
+    [['render', 'A', '--image-format', 'bmp'], /--image-format must be one of/],
+    [['render', 'A', '--jpeg-quality', '0'], /--jpeg-quality must be an integer between 1 and 100/],
+    [['render', 'A', '--jpeg-quality', '101'], /--jpeg-quality must be an integer between 1 and 100/],
+    [['render', 'A', '--jpeg-quality', 'abc'], /--jpeg-quality must be an integer between 1 and 100/],
+    [['render', 'A', '--codec', 'av1'], /--codec must be one of/],
+    [['render', 'A', '--codec', 'vp9'], /Format "mp4" does not support codec "vp9"/],
+    [['render', 'A', '--codec', 'prores'], /Format "mp4" does not support codec "prores"/],
+    [['render', 'A', '-o', 'out.webm', '--codec', 'h264'], /Format "webm" does not support codec "h264"/],
+    [['render', 'A', '-o', 'out.mov', '--codec', 'vp9'], /Format "mov" does not support codec "vp9"/],
+    [['render', 'A', '-o', 'out.gif', '--codec', 'h264'], /Format "gif" does not support --codec/],
+    [['render', 'A', '--frame', '0', '--codec', 'h264'], /Format "png" does not support --codec/],
+    [['render', 'A', '-o', 'out.mov', '--crf', '18'], /--crf cannot be used with prores/],
+    [['render', 'A', '--codec', 'h264', '--prores-profile', 'hq'], /--prores-profile is only valid with prores codec/],
+    [['render', 'A', '-o', 'out.mov', '--prores-profile', 'lossless'], /--prores-profile must be one of/],
+    [['render', 'A', '--pixel-format', 'rgb24'], /--pixel-format must be one of/],
+    [['render', 'A', '--codec', 'h264', '--pixel-format', 'yuva420p'], /Codec "h264" does not support pixel format "yuva420p"/],
+    [['render', 'A', '-o', 'out.webm', '--pixel-format', 'yuv422p'], /Codec "vp9" does not support pixel format "yuv422p"/],
+    [['render', 'A', '-o', 'out.mov', '--pixel-format', 'yuv420p'], /Codec "prores" does not support pixel format "yuv420p"/],
+    [['render', 'A', '-o', 'out.gif', '--pixel-format', 'yuv420p'], /Format "gif" does not support --pixel-format/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
   ])('rejects %j', (argv, message) => {

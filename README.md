@@ -162,8 +162,9 @@ npx freemotion render --all                      # every composition, to out/
 
 | Format | Encoder | Notes |
 |---|---|---|
-| `.mp4` | H.264, yuv420p, CRF 18 | Tagged BT.709, `+faststart` for the web. Width and height must be even. |
-| `.webm` | VP9, CRF 32 | Needs an ffmpeg built with `libvpx`. |
+| `.mp4` | H.264 / H.265, yuv420p, CRF 18/20 | Tagged BT.709, `+faststart` for the web. Width and height must be even. |
+| `.webm` | VP9, CRF 32 | Supports alpha with `yuva420p`. Needs an ffmpeg built with `libvpx`. |
+| `.mov` | ProRes / H.264 | ProRes HQ by default, supports alpha with ProRes 4444 (`yuva444p10le`). |
 | `.gif` | Palette per video | For lighter files, shrink it with `--scale 0.5` and drop frames with `--every-nth-frame 2`. |
 | `.png` | Lossless | A single frame (`--frame`). ffmpeg is not needed. |
 | `.svg` | CSS keyframes | A vector file that plays by itself, in browsers and GitHub READMEs. ffmpeg is not needed. See [Animated SVG](#animated-svg). |
@@ -172,17 +173,23 @@ npx freemotion render --all                      # every composition, to out/
 <summary><b>All render options</b></summary>
 
 ```text
--o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif, .png or .svg)
+-o, --output <file>         Output file, for a single composition (.mp4, .webm, .mov, .gif, .png or .svg)
 --out-dir <dir>             Folder for <id>.<format> files (default: out)
 --all                       Render every composition
---format <format>           mp4, webm, gif, png or svg (default: from --output, else mp4; png with --frame)
+--format <format>           mp4, webm, mov, gif, png or svg (default: from --output, else mp4; png with --frame)
 --frame <n>                 Render a still image of frame n
 --frames <a-b>              Render only frames a to b (inclusive)
 --every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs and SVGs)
 --no-loop                   GIF and SVG: stop on the last frame instead of starting over
 --props <json|file>         Props merged over defaultProps, as JSON or a path to a .json file
 --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
---crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
+--image-format <format>     Frame capture format: png or jpeg (default: png)
+--jpeg-quality <n>          JPEG quality between 1 and 100 (default: 92)
+--codec <codec>             Video codec: h264, h265, vp9 or prores (default: by format)
+--pixel-format <format>     Pixel format (default: yuv420p)
+--prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
+--crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+--overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -10,7 +11,21 @@ import { build, mergeConfig, preview, type InlineConfig } from 'vite';
 import { RENDER_API_GLOBAL, type CompositionMeta } from '../shared/render-api.js';
 
 import { launchBrowser } from './browser.js';
-import { assertFfmpeg, ffmpegArgs, formatFromPath, isVideoFormat, resolveFfmpeg, type OutputFormat, type VideoFormat } from './ffmpeg.js';
+import {
+  assertFfmpeg,
+  DEFAULT_CODEC,
+  ffmpegArgs,
+  formatFromPath,
+  isVideoFormat,
+  resolveFfmpeg,
+  type Codec,
+  type ContainerFormat,
+  type ImageFormat,
+  type OutputFormat,
+  type PixelFormat,
+  type ProResProfile,
+  type VideoFormat,
+} from './ffmpeg.js';
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
@@ -50,6 +65,18 @@ export type RenderOptions = {
   readonly crf?: number;
   /** Device pixel ratio: 2 renders twice the width and height. */
   readonly scale: number;
+  /** Intermediate frame capture format: png or jpeg (default: png). */
+  readonly imageFormat?: ImageFormat;
+  /** JPEG quality 1-100 (default: 92). */
+  readonly jpegQuality?: number;
+  /** Video codec: h264, h265, vp9 or prores. */
+  readonly codec?: Codec;
+  /** Pixel format (default: yuv420p). */
+  readonly pixelFormat?: PixelFormat;
+  /** ProRes profile: proxy, lt, standard, hq, 4444 or 4444-xq (default: hq). */
+  readonly proresProfile?: ProResProfile;
+  /** Overwrite existing files (default: true). */
+  readonly overwrite?: boolean;
   /** ffmpeg binary. Default: the project's `ffmpeg-static`, else `ffmpeg` on PATH. */
   readonly ffmpeg?: string;
   readonly browserExecutable?: string;
@@ -78,9 +105,19 @@ type Tab = {
   readonly cdp: CDPSession;
   readonly meta: CompositionMeta;
   readonly scale: number;
+  readonly imageFormat: ImageFormat;
+  readonly jpegQuality: number;
 };
 
-async function openTab({ browser, baseUrl, options }: Session, id: string): Promise<Tab> {
+async function openTab(
+  { browser, baseUrl, options }: Session,
+  id: string,
+  { alpha = false, imageFormat = 'png', jpegQuality = 92 }: {
+    readonly alpha?: boolean;
+    readonly imageFormat?: ImageFormat;
+    readonly jpegQuality?: number;
+  } = {},
+): Promise<Tab> {
   const page = await browser.newPage({ deviceScaleFactor: options.scale });
   const errors: Error[] = [];
   page.on('pageerror', error => errors.push(error));
@@ -93,10 +130,14 @@ async function openTab({ browser, baseUrl, options }: Session, id: string): Prom
     [RENDER_API_GLOBAL, id, options.props ?? null] as const,
   );
   await page.setViewportSize({ width: meta.width, height: meta.height });
-  return { page, errors, cdp: await page.context().newCDPSession(page), meta, scale: options.scale };
+  const cdp = await page.context().newCDPSession(page);
+  if (alpha) {
+    await cdp.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+  }
+  return { page, errors, cdp, meta, scale: options.scale, imageFormat, jpegQuality };
 }
 
-async function capture({ page, cdp, errors, meta, scale }: Tab, frame: number): Promise<Buffer> {
+async function capture({ page, cdp, errors, meta, scale, imageFormat, jpegQuality }: Tab, frame: number): Promise<Buffer> {
   await page.evaluate(
     ([name, value]) => window[name as typeof RENDER_API_GLOBAL]!.setFrame(value),
     [RENDER_API_GLOBAL, frame] as const,
@@ -106,11 +147,19 @@ async function capture({ page, cdp, errors, meta, scale }: Tab, frame: number): 
   }
   // Straight from the DevTools protocol: `optimizeForSpeed` trades PNG compression (not quality) for
   // a capture several times faster than page.screenshot().
-  const { data } = await cdp.send('Page.captureScreenshot', {
-    format: 'png',
-    optimizeForSpeed: true,
-    clip: { x: 0, y: 0, width: meta.width, height: meta.height, scale },
-  });
+  const screenshotOptions = imageFormat === 'jpeg'
+    ? {
+      format: 'jpeg' as const,
+      quality: jpegQuality,
+      optimizeForSpeed: true,
+      clip: { x: 0, y: 0, width: meta.width, height: meta.height, scale },
+    }
+    : {
+      format: 'png' as const,
+      optimizeForSpeed: true,
+      clip: { x: 0, y: 0, width: meta.width, height: meta.height, scale },
+    };
+  const { data } = await cdp.send('Page.captureScreenshot', screenshotOptions);
   return Buffer.from(data, 'base64');
 }
 
@@ -122,7 +171,10 @@ function checkFrame(meta: CompositionMeta, frame: number, flag: string) {
 
 async function renderStill(session: Session, job: RenderJob): Promise<RenderResult> {
   const startedAt = Date.now();
-  const tab = await openTab(session, job.id);
+  if (session.options.imageFormat === 'jpeg') {
+    session.options.log.info('Warning: still PNG output requires PNG capture; ignoring --image-format jpeg.');
+  }
+  const tab = await openTab(session, job.id, { alpha: true, imageFormat: 'png' });
   const { meta } = tab;
   const frame = session.options.frame ?? 0;
   checkFrame(meta, frame, '--frame');
@@ -146,7 +198,25 @@ function planFrames(meta: CompositionMeta, options: RenderOptions): { frames: nu
 async function renderVideo(session: Session, job: RenderJob, format: VideoFormat): Promise<RenderResult> {
   const { options } = session;
   const startedAt = Date.now();
-  const first = await openTab(session, job.id);
+
+  const codec = options.codec ?? (format in DEFAULT_CODEC ? DEFAULT_CODEC[format as ContainerFormat] : undefined);
+  const proresProfile = options.proresProfile ?? (codec === 'prores' ? 'hq' : undefined);
+  const pixelFormat = options.pixelFormat ?? (
+    codec === 'prores'
+      ? (proresProfile === '4444' || proresProfile === '4444-xq' ? 'yuva444p10le' : 'yuv422p10le')
+      : (codec ? 'yuv420p' : undefined)
+  );
+
+  const hasAlpha = pixelFormat === 'yuva420p' || pixelFormat === 'yuva444p10le';
+  let imageFormat = options.imageFormat ?? 'png';
+  if (hasAlpha && options.imageFormat === 'jpeg') {
+    options.log.info('Warning: alpha output requires PNG capture; ignoring --image-format jpeg.');
+    imageFormat = 'png';
+  }
+  const jpegQuality = options.jpegQuality ?? 92;
+
+  const tabOptions = { alpha: hasAlpha, imageFormat, jpegQuality };
+  const first = await openTab(session, job.id, tabOptions);
   const { meta } = first;
 
   const { frames, fps } = planFrames(meta, options);
@@ -156,9 +226,20 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   }
 
   const extra = Math.max(0, Math.min(options.concurrency, frames.length) - 1);
-  const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id))))];
+  const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id, tabOptions))))];
 
-  const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({ format, fps, crf: options.crf, loop: options.loop, output: job.output }), {
+  const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({
+    format,
+    fps,
+    codec,
+    pixelFormat,
+    proresProfile,
+    imageFormat,
+    crf: options.crf,
+    loop: options.loop,
+    overwrite: options.overwrite,
+    output: job.output,
+  }), {
     stdio: ['pipe', 'inherit', 'inherit'],
   });
   const exited = once(ffmpeg, 'close');
@@ -258,7 +339,7 @@ export function planJobs(options: Pick<RenderOptions, 'compositions' | 'output' 
     const output = options.output ?? join(options.outDir, `${id}.${fallback}`);
     const format = options.format ?? formatFromPath(output);
     if (!format) {
-      throw new Error(`Can't tell the format of "${output}". Use a .mp4, .webm, .gif, .png or .svg file, or pass --format.`);
+      throw new Error(`Can't tell the format of "${output}". Use a .mp4, .webm, .mov, .gif, .png or .svg file, or pass --format.`);
     }
     return { id, output, format };
   });
@@ -267,6 +348,9 @@ export function planJobs(options: Pick<RenderOptions, 'compositions' | 'output' 
 /** Builds the project once, then renders each composition with headless Chromium and ffmpeg. */
 export async function render(options: RenderOptions): Promise<RenderResult[]> {
   const { root, log } = options;
+  if (options.overwrite === false && options.output && existsSync(resolve(root, options.output))) {
+    throw new Error(`Output file "${options.output}" already exists. Pass --overwrite to replace it.`);
+  }
   const entry = resolveEntry(root, options.entry);
   const outDir = await mkdtemp(join(tmpdir(), 'freemotion-'));
   const base = await createViteConfig({ root, entry, command: 'build', configFile: options.configFile });
@@ -304,6 +388,13 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
     await probe.close();
 
     const jobs = planJobs(options, available);
+    if (options.overwrite === false) {
+      for (const job of jobs) {
+        if (existsSync(resolve(root, job.output))) {
+          throw new Error(`Output file "${job.output}" already exists. Pass --overwrite to replace it.`);
+        }
+      }
+    }
     if (jobs.some(job => isVideoFormat(job.format))) {
       await assertFfmpeg(session.ffmpeg);
     }

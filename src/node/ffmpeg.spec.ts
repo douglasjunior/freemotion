@@ -11,7 +11,8 @@ describe('formatFromPath', () => {
     expect(formatFromPath('A.WEBM')).toBe('webm');
     expect(formatFromPath('a.gif')).toBe('gif');
     expect(formatFromPath('a.png')).toBe('png');
-    expect(formatFromPath('a.mov')).toBeNull();
+    expect(formatFromPath('a.mov')).toBe('mov');
+    expect(formatFromPath('a.avi')).toBeNull();
     expect(formatFromPath('a')).toBeNull();
   });
 });
@@ -44,6 +45,151 @@ describe('ffmpegArgs', () => {
     const args = ffmpegArgs({ format: 'gif', fps: 15, output: 'o.gif' });
     expect(after(args, '-filter_complex')).toContain('palettegen');
     expect(after(args, '-loop')).toBe('0');
+  });
+
+  it('matches snapshot: h264 yuv420p', () => {
+    expect(ffmpegArgs({ format: 'mp4', fps: 30, codec: 'h264', pixelFormat: 'yuv420p', output: 'o.mp4' })).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-framerate',
+      '30',
+      '-c:v',
+      'png',
+      '-i',
+      '-',
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709',
+      '-c:v',
+      'libx264',
+      '-crf',
+      '18',
+      '-video_track_timescale',
+      '90000',
+      '-movflags',
+      '+faststart',
+      'o.mp4',
+    ]);
+  });
+
+  it('matches snapshot: h265 com hvc1', () => {
+    expect(ffmpegArgs({ format: 'mp4', fps: 30, codec: 'h265', output: 'o.mp4' })).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-framerate',
+      '30',
+      '-c:v',
+      'png',
+      '-i',
+      '-',
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709',
+      '-c:v',
+      'libx265',
+      '-tag:v',
+      'hvc1',
+      '-crf',
+      '20',
+      '-video_track_timescale',
+      '90000',
+      '-movflags',
+      '+faststart',
+      'o.mp4',
+    ]);
+  });
+
+  it('matches snapshot: vp9 yuva420p', () => {
+    expect(ffmpegArgs({ format: 'webm', fps: 30, codec: 'vp9', pixelFormat: 'yuva420p', output: 'o.webm' })).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-framerate',
+      '30',
+      '-c:v',
+      'png',
+      '-i',
+      '-',
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuva420p,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709',
+      '-c:v',
+      'libvpx-vp9',
+      '-crf',
+      '32',
+      '-b:v',
+      '0',
+      '-row-mt',
+      '1',
+      '-auto-alt-ref',
+      '0',
+      'o.webm',
+    ]);
+  });
+
+  it('matches snapshot: prores 4444', () => {
+    expect(ffmpegArgs({ format: 'mov', fps: 24, codec: 'prores', proresProfile: '4444', output: 'o.mov' })).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-framerate',
+      '24',
+      '-c:v',
+      'png',
+      '-i',
+      '-',
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709',
+      '-c:v',
+      'prores_ks',
+      '-profile:v',
+      '4',
+      'o.mov',
+    ]);
+  });
+
+  it('matches snapshot: entrada mjpeg com conversão BT.601 para BT.709', () => {
+    expect(ffmpegArgs({ format: 'mp4', fps: 30, imageFormat: 'jpeg', output: 'o.mp4' })).toEqual([
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-framerate',
+      '30',
+      '-c:v',
+      'mjpeg',
+      '-i',
+      '-',
+      '-vf',
+      'scale=in_range=pc:in_color_matrix=bt601:out_color_matrix=bt709:out_range=tv,format=yuv420p,setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709',
+      '-c:v',
+      'libx264',
+      '-crf',
+      '18',
+      '-video_track_timescale',
+      '90000',
+      '-movflags',
+      '+faststart',
+      'o.mp4',
+    ]);
+  });
+
+  it('uses -n when overwrite is false', () => {
+    const args = ffmpegArgs({ format: 'mp4', fps: 30, overwrite: false, output: 'o.mp4' });
+    expect(args[3]).toBe('-n');
   });
 });
 

@@ -3,7 +3,23 @@ import { availableParallelism } from 'node:os';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { OUTPUT_FORMATS, type OutputFormat } from './ffmpeg.js';
+import {
+  CODEC_PIXEL_FORMATS,
+  CODECS,
+  DEFAULT_CODEC,
+  FORMAT_CODECS,
+  formatFromPath,
+  IMAGE_FORMATS,
+  OUTPUT_FORMATS,
+  PIXEL_FORMATS,
+  PRORES_PROFILES,
+  type Codec,
+  type ContainerFormat,
+  type ImageFormat,
+  type OutputFormat,
+  type PixelFormat,
+  type ProResProfile,
+} from './ffmpeg.js';
 import type { RenderOptions } from './render.js';
 import type { StudioOptions } from './studio.js';
 
@@ -17,7 +33,7 @@ Usage
 Commands
   init [directory]     Create a new project (default directory: my-video)
   studio               Preview your compositions with hot reload
-  render <id...>       Render compositions to MP4, WebM, GIF, PNG or animated SVG
+  render <id...>       Render compositions to MP4, WebM, MOV, GIF, PNG or animated SVG
 
 Options
   -h, --help           Show help for a command
@@ -47,17 +63,23 @@ Options
   freemotion render --all [options]
 
 Options
-  -o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif, .png or .svg)
+  -o, --output <file>         Output file, for a single composition (.mp4, .webm, .mov, .gif, .png or .svg)
   --out-dir <dir>             Folder for <id>.<format> files (default: out)
   --all                       Render every composition
-  --format <format>           mp4, webm, gif, png or svg (default: from --output, else mp4; png with --frame)
+  --format <format>           mp4, webm, mov, gif, png or svg (default: from --output, else mp4; png with --frame)
   --frame <n>                 Render a still image of frame n
   --frames <a-b>              Render only frames a to b (inclusive)
   --every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs and SVGs)
   --no-loop                   GIF and SVG: stop on the last frame instead of starting over
   --props <json|file>         Props merged over defaultProps, as JSON or a path to a .json file
   --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
-  --crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
+  --image-format <format>     Frame capture format: png or jpeg (default: png)
+  --jpeg-quality <n>          JPEG quality between 1 and 100 (default: 92)
+  --codec <codec>             Video codec: h264, h265, vp9 or prores (default: by format)
+  --pixel-format <format>     Pixel format (default: yuv420p)
+  --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
+  --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+  --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
   --concurrency <n>           Browser tabs rendering in parallel (default: ${defaultConcurrency()})
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
   --config <file>             Vite config to merge (default: vite.config.* in the project)
@@ -202,7 +224,13 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           loop: { type: 'boolean' },
           props: { type: 'string' },
           scale: { type: 'string' },
+          'image-format': { type: 'string' },
+          'jpeg-quality': { type: 'string' },
+          codec: { type: 'string' },
+          'pixel-format': { type: 'string' },
+          'prores-profile': { type: 'string' },
           crf: { type: 'string' },
+          overwrite: { type: 'boolean' },
           concurrency: { type: 'string' },
           entry: { type: 'string' },
           config: { type: 'string' },
@@ -227,6 +255,70 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
       if (values.frame !== undefined && values.frames !== undefined) {
         throw new Error('Use --frame for a still image or --frames for a video range, not both.');
       }
+
+      if (values['image-format'] && !(IMAGE_FORMATS as readonly string[]).includes(values['image-format'])) {
+        throw new Error(`--image-format must be one of ${IMAGE_FORMATS.join(', ')} (got "${values['image-format']}").`);
+      }
+
+      let jpegQuality: number | undefined;
+      if (values['jpeg-quality'] !== undefined) {
+        const number = Number(values['jpeg-quality']);
+        if (!Number.isInteger(number) || number < 1 || number > 100) {
+          throw new Error(`--jpeg-quality must be an integer between 1 and 100 (got "${values['jpeg-quality']}").`);
+        }
+        jpegQuality = number;
+      }
+
+      if (values.codec && !(CODECS as readonly string[]).includes(values.codec)) {
+        throw new Error(`--codec must be one of ${CODECS.join(', ')} (got "${values.codec}").`);
+      }
+
+      const outputExtFormat = values.output ? formatFromPath(values.output) : null;
+      const targetFormat = (values.format as OutputFormat | undefined)
+        ?? outputExtFormat
+        ?? (values.frame !== undefined ? 'png' : 'mp4');
+
+      if (values.codec) {
+        if (targetFormat !== 'mp4' && targetFormat !== 'webm' && targetFormat !== 'mov') {
+          throw new Error(`Format "${targetFormat}" does not support --codec.`);
+        }
+        const allowedCodecs = FORMAT_CODECS[targetFormat as ContainerFormat];
+        if (!allowedCodecs.includes(values.codec as Codec)) {
+          throw new Error(`Format "${targetFormat}" does not support codec "${values.codec}". Valid codecs for ${targetFormat}: ${allowedCodecs.join(', ')}.`);
+        }
+      }
+
+      const effectiveCodec: Codec | undefined = (values.codec as Codec | undefined)
+        ?? (targetFormat === 'mp4' || targetFormat === 'webm' || targetFormat === 'mov'
+          ? DEFAULT_CODEC[targetFormat as ContainerFormat]
+          : undefined);
+
+      if (values['prores-profile']) {
+        if (!(PRORES_PROFILES as readonly string[]).includes(values['prores-profile'])) {
+          throw new Error(`--prores-profile must be one of ${PRORES_PROFILES.join(', ')} (got "${values['prores-profile']}").`);
+        }
+        if (effectiveCodec !== 'prores') {
+          throw new Error('--prores-profile is only valid with prores codec.');
+        }
+      }
+
+      if (values.crf !== undefined && effectiveCodec === 'prores') {
+        throw new Error('--crf cannot be used with prores.');
+      }
+
+      if (values['pixel-format']) {
+        if (!(PIXEL_FORMATS as readonly string[]).includes(values['pixel-format'])) {
+          throw new Error(`--pixel-format must be one of ${PIXEL_FORMATS.join(', ')} (got "${values['pixel-format']}").`);
+        }
+        if (!effectiveCodec) {
+          throw new Error(`Format "${targetFormat}" does not support --pixel-format.`);
+        }
+        const allowedPixelFormats = CODEC_PIXEL_FORMATS[effectiveCodec];
+        if (!allowedPixelFormats.includes(values['pixel-format'] as PixelFormat)) {
+          throw new Error(`Codec "${effectiveCodec}" does not support pixel format "${values['pixel-format']}". Valid pixel formats: ${allowedPixelFormats.join(', ')}.`);
+        }
+      }
+
       return {
         name: 'render',
         quiet: Boolean(values.quiet),
@@ -244,7 +336,13 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           loop: values.loop,
           props: values.props === undefined ? undefined : parseProps(values.props, cwd),
           scale: positive(values.scale, '--scale') ?? 1,
+          imageFormat: values['image-format'] as ImageFormat | undefined,
+          jpegQuality: jpegQuality ?? 92,
+          codec: values.codec as Codec | undefined,
+          pixelFormat: values['pixel-format'] as PixelFormat | undefined,
+          proresProfile: values['prores-profile'] as ProResProfile | undefined,
           crf: values.crf === undefined ? undefined : integer(values.crf, '--crf', 0),
+          overwrite: values.overwrite ?? true,
           concurrency: integer(values.concurrency, '--concurrency', 1) ?? defaultConcurrency(),
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,
           browserExecutable: values['browser-executable'],
