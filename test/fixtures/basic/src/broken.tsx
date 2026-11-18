@@ -26,7 +26,7 @@ const AsyncError = () => {
     if (frame === 1) {
       setTimeout(() => {
         throw new Error('error on old tab');
-      }, 50);
+      }, 0);
     }
   }, [frame]);
   return <AbsoluteFill style={{ background: '#ff0000' }} />;

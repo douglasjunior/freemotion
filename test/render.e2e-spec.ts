@@ -100,7 +100,7 @@ describe('freemotion render', () => {
 
   it('renders identically with aggressive tab recycling (--recycle-tabs 3)', async () => {
     const output = join(OUT, 'recycle-colors.mp4');
-    const { code, stdout } = await run(['render', 'Colors', '--recycle-tabs', '3', '-o', output], FIXTURE);
+    const { code, stdout } = await run(['render', 'Colors', '--concurrency', '1', '--recycle-tabs', '3', '-o', output], FIXTURE);
     expect(code).toBe(0);
     expect(stdout).toContain('Colors · 10 frames');
 
@@ -201,7 +201,7 @@ describe('freemotion render', () => {
     it('fails the render if an error occurs on a recycled tab', async () => {
       const output = join(OUT, 'async-error.mp4');
       const { code, stderr } = await run(
-        ['render', 'AsyncError', '--entry', 'src/broken.tsx', '--recycle-tabs', '2', '-o', output],
+        ['render', 'AsyncError', '--entry', 'src/broken.tsx', '--concurrency', '1', '--recycle-tabs', '2', '-o', output],
         FIXTURE,
       );
       expect(code).toBe(1);

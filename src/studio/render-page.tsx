@@ -36,7 +36,9 @@ function mount(id: string, props: Record<string, unknown> | null, options?: Moun
     throw new Error(`Unknown composition "${id}". Available: ${list.map(item => item.id).join(', ') || '(none)'}.`);
   }
   setRenderContext({ videoServerUrl: options?.videoServerUrl });
-  setDefaultRenderTimeout(options?.timeoutInMilliseconds ?? 30_000);
+  if (options?.timeoutInMilliseconds !== undefined) {
+    setDefaultRenderTimeout(options.timeoutInMilliseconds);
+  }
   mounted = { composition, props: { ...composition.defaultProps, ...props } };
   return meta(composition);
 }

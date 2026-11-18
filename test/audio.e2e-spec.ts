@@ -316,7 +316,7 @@ describe('Audio rendering pipeline e2e', () => {
   it('preserves all audio assets across tab lifecycles with --recycle-tabs', async () => {
     const output = join(OUT, 'RecycledAudio.mp4');
     const { code, stderr } = await run(
-      ['render', 'NarrationAudio', '--entry', 'src/audio.tsx', '--recycle-tabs', '3', '-o', output],
+      ['render', 'NarrationAudio', '--entry', 'src/audio.tsx', '--concurrency', '1', '--recycle-tabs', '3', '-o', output],
       FIXTURE,
     );
     expect(code, stderr).toBe(0);
