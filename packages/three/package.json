@@ -1,0 +1,35 @@
+{
+  "name": "@freemotion/three",
+  "version": "0.1.1",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "ts": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "freemotion": "^0.1.1",
+    "three": ">=0.160.0",
+    "@react-three/fiber": ">=8.0.0 || >=9.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "freemotion": "file:../..",
+    "three": "^0.180.0",
+    "@types/three": "^0.180.0",
+    "@react-three/fiber": "^9.0.0"
+  }
+}

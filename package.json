@@ -53,8 +53,8 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js",
-    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js && npm run build --workspaces --if-present",
+    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json && npm run ts --workspaces --if-present",
     "lint": "eslint . --cache --cache-location .eslintcache/",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
@@ -92,5 +92,8 @@
   "allowScripts": {
     "unrs-resolver": false,
     "fsevents": false
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

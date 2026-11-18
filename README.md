@@ -382,6 +382,7 @@ Everything is exported from `freemotion`.
 | `defineComposition(definition)` | Declares a composition: `id`, `component`, `defaultProps`, `fps`, `width`, `height`, `durationInFrames` and an optional `folder`. |
 | `getEnvironment()` | Execution environment: `{ isStudio, isRendering, isPlayer }`. |
 | `useCurrentFrame()` | The frame being drawn. Relative to the start of the enclosing `<Sequence>`. |
+| `useContextBridge()` | Captures frame and playback contexts for a separate React renderer. |
 | `usePlayback()` | Playback state: `{ playing, muted }`. |
 | `usePremounting()` | Whether the component is mounted early before its window to preload assets. |
 | `useVideoConfig()` | `{ fps, width, height, durationInFrames }` of the composition. |

@@ -3,7 +3,11 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
@@ -14,8 +18,23 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals", "node"]
+    "types": [
+      "vitest/globals",
+      "node"
+    ]
   },
-  "include": ["src", "test", "*.ts", "*.js"],
-  "exclude": ["node_modules", "dist", "templates", "test/fixtures", "test/.tmp"]
+  "include": [
+    "src",
+    "test",
+    "*.ts",
+    "*.js",
+    "packages/*/src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "templates",
+    "test/fixtures",
+    "test/.tmp"
+  ]
 }

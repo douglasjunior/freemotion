@@ -63,3 +63,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /test/fixtures/basic/out
 /test/fixtures/basic/public/clips
 /test/fixtures/basic/public/skill
+
+packages/*/dist/
