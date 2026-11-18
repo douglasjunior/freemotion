@@ -220,6 +220,7 @@ What to know:
 - **Derive everything from the frame.** CSS animations, transitions and timers run on the wall clock and won't match between tabs. Use `interpolate()` and `spring()` instead.
 - **Use `random(seed)`** instead of `Math.random()`: the same seed gives the same number in every tab and on every machine.
 - **Wait for async data** with [`delayRender()`](#async-data-delayrender).
+- **Concurrent renders:** freemotion caches bundle builds under `node_modules/.cache/freemotion` across renders. When running concurrent render processes on the same project (e.g. parallel CI workers on one machine), pass `--no-build-cache` to give each process an isolated temporary directory.
 
 ## 🌐 Player
 

@@ -78,6 +78,7 @@ export type BundleMeta = {
   readonly packageLockMtime: number | null;
   readonly configFiles: readonly FileRecord[];
   readonly sourceFiles: readonly FileRecord[];
+  readonly sourceDirectories?: readonly FileRecord[];
   readonly envFiles?: readonly FileRecord[];
 };
 
@@ -242,22 +243,50 @@ export async function isBundleCacheValid(
     }
   }
 
+  // Check source directories (detect newly added or deleted files)
+  if (Array.isArray(meta.sourceDirectories)) {
+    for (const dir of meta.sourceDirectories) {
+      if (!fs.existsSync(dir.path)) {
+        return false;
+      }
+      try {
+        const stats = await fs.stat(dir.path);
+        if (stats.mtimeMs !== dir.mtimeMs) {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
+
+export const STALE_DIR_THRESHOLD_MS = 10 * 60 * 1000;
 
 export async function createStagingDir(bundleDir: string, fs: CacheFs = defaultFs): Promise<string> {
   const baseDir = dirname(bundleDir);
   await fs.mkdir(baseDir, { recursive: true });
 
-  // Clean up any stale staging or backup directories from interrupted processes
+  const targetName = basename(bundleDir);
+  const prefixes = [`.staging-${targetName}-`, `.old-${targetName}-`];
+
+  // Clean up only stale staging or backup directories belonging to this bundle key
   const entries = await fs.readdir(baseDir).catch(() => []);
+  const now = Date.now();
   for (const entry of entries) {
-    if (entry.startsWith('.staging-') || entry.startsWith('.old-')) {
-      await fs.rm(join(baseDir, entry), { recursive: true, force: true }).catch(() => undefined);
+    for (const prefix of prefixes) {
+      if (entry.startsWith(prefix)) {
+        const timestamp = Number(entry.slice(prefix.length).split('-')[0]);
+        if (!Number.isNaN(timestamp) && now - timestamp > STALE_DIR_THRESHOLD_MS) {
+          await fs.rm(join(baseDir, entry), { recursive: true, force: true }).catch(() => undefined);
+        }
+      }
     }
   }
 
-  const staging = join(baseDir, `.staging-${basename(bundleDir)}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const staging = join(baseDir, `.staging-${targetName}-${now}-${Math.random().toString(36).slice(2, 8)}`);
   await fs.mkdir(staging, { recursive: true });
   return staging;
 }
@@ -353,6 +382,22 @@ export function bundleCachePlugin(options: BundleCachePluginOptions): Plugin {
       }
       configFiles.sort((a, b) => a.path.localeCompare(b.path));
 
+      // Collect directories containing source files in project root
+      const sourceDirPaths = new Set<string>();
+      for (const filePath of sourcePaths) {
+        if (!filePath.includes('node_modules') && filePath.startsWith(options.root)) {
+          sourceDirPaths.add(dirname(filePath));
+        }
+      }
+      const sourceDirectories: FileRecord[] = [];
+      for (const dirPath of sourceDirPaths) {
+        if (existsSync(dirPath)) {
+          const stats = statSync(dirPath);
+          sourceDirectories.push({ path: dirPath, size: stats.size, mtimeMs: stats.mtimeMs });
+        }
+      }
+      sourceDirectories.sort((a, b) => a.path.localeCompare(b.path));
+
       const envFiles = collectEnvFilesSync(options.root);
 
       const meta: BundleMeta = {
@@ -363,6 +408,7 @@ export function bundleCachePlugin(options: BundleCachePluginOptions): Plugin {
         packageLockMtime: resolvePackageLockMtime(options.root),
         configFiles,
         sourceFiles,
+        sourceDirectories,
         envFiles,
       };
 

@@ -305,6 +305,21 @@ describe('bundle-cache', () => {
       });
       expect(await isBundleCacheValid(bundleDir, validOptions, fsAdded)).toBe(false);
     });
+
+    it('returns false when source directory mtime changed (new/deleted file)', async () => {
+      const metaWithDirs: BundleMeta = {
+        ...baseMeta,
+        sourceDirectories: [{ path: '/project/src', size: 100, mtimeMs: 1000 }],
+      };
+      const fs = createMockFs({
+        [join(bundleDir, 'meta.json')]: JSON.stringify(metaWithDirs),
+        [join(bundleDir, 'index.html')]: '<html></html>',
+        [entry]: { size: 100, mtimeMs: 2000 },
+        ['/project/src/App.tsx']: { size: 50, mtimeMs: 2000 },
+        ['/project/src']: { size: 100, mtimeMs: 1500 }, // directory mtime changed
+      });
+      expect(await isBundleCacheValid(bundleDir, validOptions, fs)).toBe(false);
+    });
   });
 
   describe('atomic publication', () => {
@@ -352,16 +367,31 @@ describe('bundle-cache', () => {
       expect(fs.existsSync(staging)).toBe(false);
     });
 
-    it('cleans up stale .staging and .old directories when creating staging dir', async () => {
+    it('cleans up stale .staging and .old directories matching bundle key older than threshold', async () => {
+      const now = Date.now();
+      const staleTimestamp = now - 15 * 60 * 1000; // 15 mins ago (stale)
+      const recentTimestamp = now - 5000; // 5 seconds ago (recent active build)
+
+      const base = '/project/node_modules/.cache/freemotion';
       const fs = createMockFs({
-        ['/project/node_modules/.cache/freemotion/.staging-stale/file.js']: 'stale',
-        ['/project/node_modules/.cache/freemotion/.old-stale/file.js']: 'old',
+        // Stale for this bundle key: should be cleaned up
+        [`${base}/.staging-bundle-123-${staleTimestamp}-abc/file.js`]: 'stale',
+        [`${base}/.old-bundle-123-${staleTimestamp}-def/file.js`]: 'old',
+        // Recent for this bundle key: should NOT be touched (active concurrent build)
+        [`${base}/.staging-bundle-123-${recentTimestamp}-active/file.js`]: 'active',
+        // Stale for ANOTHER bundle key: should NOT be touched
+        [`${base}/.staging-bundle-other-${staleTimestamp}-xyz/file.js`]: 'other',
       });
 
       await createStagingDir(bundleDir, fs);
 
-      expect(fs.existsSync('/project/node_modules/.cache/freemotion/.staging-stale')).toBe(false);
-      expect(fs.existsSync('/project/node_modules/.cache/freemotion/.old-stale')).toBe(false);
+      // Stale for bundle-123 is deleted
+      expect(fs.existsSync(`${base}/.staging-bundle-123-${staleTimestamp}-abc`)).toBe(false);
+      expect(fs.existsSync(`${base}/.old-bundle-123-${staleTimestamp}-def`)).toBe(false);
+      // Recent for bundle-123 remains
+      expect(fs.existsSync(`${base}/.staging-bundle-123-${recentTimestamp}-active`)).toBe(true);
+      // Other bundle key remains
+      expect(fs.existsSync(`${base}/.staging-bundle-other-${staleTimestamp}-xyz`)).toBe(true);
     });
   });
 
