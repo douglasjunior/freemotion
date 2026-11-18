@@ -1,4 +1,6 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 
@@ -42,6 +44,36 @@ export function centerPixel(file: string, index = 0): [number, number, number] {
 
 export function hasEncoder(name: string): boolean {
   return spawnSync('ffmpeg', ['-hide_banner', '-encoders'], { encoding: 'utf8' }).stdout.includes(name);
+}
+
+/** Computes average PSNR (dB) between two video or image files via ffmpeg. Returns Infinity when identical. */
+export function psnr(a: string, b: string): number {
+  const result = spawnSync('ffmpeg', ['-v', 'info', '-i', a, '-i', b, '-lavfi', 'psnr', '-f', 'null', '-'], { encoding: 'utf8' });
+  const output = (result.stderr || '') + (result.stdout || '');
+  const match = output.match(/average:([0-9.]+|inf)/i);
+  if (!match) {
+    throw new Error(`Failed to calculate PSNR between ${a} and ${b}: ${output}`);
+  }
+  return match[1]?.toLowerCase() === 'inf' ? Infinity : parseFloat(match[1]!);
+}
+
+/** Extracts an exact frame at a given timestamp in seconds from a video file using ffmpeg. */
+export function referenceFrame(file: string, seconds: number, outputPath?: string): string {
+  const target = outputPath ?? fileURLToPath(new URL(`./fixtures/basic/out/ref_${Date.now()}_${Math.random().toString(36).slice(2)}.png`, import.meta.url));
+  mkdirSync(dirname(target), { recursive: true });
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-ss',
+    seconds.toFixed(6),
+    '-i',
+    file,
+    '-frames:v',
+    '1',
+    '-y',
+    target,
+  ]);
+  return target;
 }
 
 /** Asserts a color within a tolerance, for lossy formats. */
