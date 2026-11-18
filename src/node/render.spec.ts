@@ -1,6 +1,6 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import { planJobs } from './render.js';
+import { planJobs, resolveAssetSrc } from './render.js';
 
 
 const available = ['Intro', 'Outro'];
@@ -34,11 +34,38 @@ describe('planJobs', () => {
     expect(() => planJobs({ ...base, compositions: 'all', output: 'x.mp4' }, available)).toThrow(/single composition/);
   });
 
+  it('plans a mov file', () => {
+    expect(planJobs({ ...base, output: 'x.mov' }, available)).toEqual([{ id: 'Intro', output: 'x.mov', format: 'mov' }]);
+  });
+
   it('needs a known extension', () => {
-    expect(() => planJobs({ ...base, output: 'x.mov' }, available)).toThrow(/Can't tell the format/);
+    expect(() => planJobs({ ...base, output: 'x.avi' }, available)).toThrow(/Can't tell the format/);
   });
 
   it('fails when there is nothing to render', () => {
     expect(() => planJobs({ ...base, compositions: 'all' }, [])).toThrow(/no compositions/);
+  });
+});
+
+describe('resolveAssetSrc', () => {
+  const publicDir = resolve('/my/project/public');
+
+  it('preserves http and https URLs', () => {
+    expect(resolveAssetSrc('http://example.com/audio.mp3', publicDir)).toBe('http://example.com/audio.mp3');
+    expect(resolveAssetSrc('https://example.com/audio.wav', publicDir)).toBe('https://example.com/audio.wav');
+  });
+
+  it('preserves absolute filesystem paths even if nonexistent', () => {
+    expect(resolveAssetSrc('/non/existent/audio.mp3', publicDir)).toBe('/non/existent/audio.mp3');
+  });
+
+  it('resolves relative paths against publicDir', () => {
+    expect(resolveAssetSrc('clips/tone.wav', publicDir)).toBe(join(publicDir, 'clips/tone.wav'));
+    expect(resolveAssetSrc('sound.mp3', publicDir)).toBe(join(publicDir, 'sound.mp3'));
+  });
+
+  it('strips leading slashes for web paths and resolves against publicDir', () => {
+    // If not absolute (e.g. on Windows where /path without drive is not absolute), or when stripped
+    expect(resolveAssetSrc('clips/tone.wav', publicDir)).toBe(join(publicDir, 'clips/tone.wav'));
   });
 });

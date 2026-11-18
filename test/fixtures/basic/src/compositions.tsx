@@ -1,9 +1,13 @@
 // Small solid-color compositions: the e2e tests render them and read pixels back.
-import { AbsoluteFill, continueRender, defineComposition, delayRender, Img, Series, staticFile } from 'freemotion';
+import { Sequence, AbsoluteFill, continueRender, defineComposition, delayRender, Img, Series, staticFile } from 'freemotion';
 import { useEffect, useState } from 'react';
+
+import shotMixComposition from './shot-mix';
 
 
 const size = { fps: 30, width: 64, height: 64 };
+
+const TimelineFixture = () => <Sequence name="Scene" from={3} durationInFrames={4}><div /></Sequence>;
 
 const Fill = ({ color }: { readonly color: string }) => <AbsoluteFill style={{ background: color }} />;
 
@@ -40,7 +44,9 @@ export const colors = defineComposition({ ...size, id: 'Colors', component: Colo
 
 export default [
   colors,
+  defineComposition({ ...size, id: 'Timeline', component: TimelineFixture, durationInFrames: 10 }),
   defineComposition({ ...size, id: 'Props', component: Fill, defaultProps: { color: '#ff0000' }, durationInFrames: 1 }),
   defineComposition({ ...size, id: 'Held', component: Held, durationInFrames: 2 }),
   defineComposition({ ...size, id: 'Asset', component: Asset, durationInFrames: 1, folder: 'Assets' }),
+  shotMixComposition,
 ];

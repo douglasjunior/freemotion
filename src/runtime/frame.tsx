@@ -8,9 +8,12 @@ export type VideoConfig = {
   readonly durationInFrames: number;
 };
 
-type FrameState = {
+export type FrameState = {
   readonly config: VideoConfig;
   readonly frame: number;
+  readonly offset: number;
+  readonly frozen: boolean;
+  readonly premounting?: boolean;
 };
 
 const FrameContext = createContext<FrameState | null>(null);
@@ -28,16 +31,40 @@ export function useCurrentFrame(): number {
   return useFrameState().frame;
 }
 
+/** The absolute frame on the composition timeline, accounting for enclosing Sequence offsets. */
+export function useAbsoluteFrame(): number {
+  const { frame, offset } = useFrameState();
+  return frame + offset;
+}
+
+/** Whether the component is being mounted early before its window to preload assets (e.g. video/audio). */
+export function usePremounting(): boolean {
+  return useFrameState().premounting ?? false;
+}
+
 /** Size, frame rate and duration of the composition being drawn. */
 export function useVideoConfig(): VideoConfig {
   return useFrameState().config;
 }
 
-export const FrameProvider = ({ config, frame, children }: {
+export const FrameProvider = ({
+  config,
+  frame,
+  offset = 0,
+  frozen = false,
+  premounting,
+  children,
+}: {
   readonly config: VideoConfig;
   readonly frame: number;
+  readonly offset?: number;
+  readonly frozen?: boolean;
+  readonly premounting?: boolean;
   readonly children: ReactNode;
 }) => {
-  const value = useMemo(() => ({ config, frame }), [config, frame]);
+  const value = useMemo(
+    () => (premounting ? { config, frame, offset, frozen, premounting } : { config, frame, offset, frozen }),
+    [config, frame, offset, frozen, premounting],
+  );
   return <FrameContext.Provider value={value}>{children}</FrameContext.Provider>;
 };

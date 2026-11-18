@@ -1,4 +1,4 @@
-import { cancelRender, continueRender, delayRender, pendingRenderHolds, resetRenderHolds, waitForRenderHolds } from './delay-render.js';
+import { cancelRender, continueRender, delayRender, pendingRenderHolds, resetRenderHolds, setDefaultRenderTimeout, waitForRenderHolds } from './delay-render.js';
 
 
 describe('delayRender', () => {
@@ -46,6 +46,28 @@ describe('delayRender', () => {
     const waiting = waitForRenderHolds();
     vi.advanceTimersByTime(1000);
     await expect(waiting).rejects.toThrow(/"slow fetch" was not released .* 1000 ms/);
+  });
+
+  it('respects changed default timeout via setDefaultRenderTimeout', async () => {
+    setDefaultRenderTimeout(5000);
+    delayRender('custom default');
+    const waiting = waitForRenderHolds();
+
+    vi.advanceTimersByTime(4999);
+    await Promise.resolve();
+    expect(pendingRenderHolds()).toEqual(['custom default']);
+
+    vi.advanceTimersByTime(1);
+    await expect(waiting).rejects.toThrow(/"custom default" was not released .* 5000 ms/);
+  });
+
+  it('allows per-call timeout to take precedence over changed default timeout', async () => {
+    setDefaultRenderTimeout(10000);
+    delayRender('explicit option', { timeoutInMilliseconds: 2000 });
+    const waiting = waitForRenderHolds();
+
+    vi.advanceTimersByTime(2000);
+    await expect(waiting).rejects.toThrow(/"explicit option" was not released .* 2000 ms/);
   });
 
   it('fails when the render is cancelled', async () => {

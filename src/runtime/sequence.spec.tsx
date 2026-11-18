@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create } from 'react-test-renderer';
 
-import { useCurrentFrame, useVideoConfig } from './frame.js';
+import { resetEnvironment, setEnvironment } from './environment.js';
+import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Sequence, Series } from './sequence.js';
 import { Stage } from './stage.js';
+import { getTimelineSnapshot } from './timeline-registry.js';
 
 
 const config = { fps: 30, width: 320, height: 180, durationInFrames: 100 };
@@ -57,6 +60,58 @@ describe('Sequence', () => {
     expect(() => draw(0, <Sequence from={Number.NaN} />)).toThrow(/"from"/);
     expect(() => draw(0, <Sequence durationInFrames={0} />)).toThrow(/positive/);
   });
+
+  describe('premountFor', () => {
+    const PremountProbe = () => {
+      const frame = useCurrentFrame();
+      const { frozen, premounting } = useFrameState();
+      return <span data-frame={frame} data-frozen={String(frozen)} data-premounting={String(premounting)} />;
+    };
+
+    afterEach(() => {
+      resetEnvironment();
+    });
+
+    it('premounts hidden with frame 0 frozen when local frame is within -premountFor', () => {
+      // from 20, premountFor 10:
+      // frame 15 gives local frame -5
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(15, tree);
+      expect(html).toContain('visibility:hidden');
+      expect(html).toContain('data-frame="0"');
+      expect(html).toContain('data-frozen="true"');
+      expect(html).toContain('data-premounting="true"');
+    });
+
+    it('does not mount when local frame is before -premountFor', () => {
+      // frame 9 gives local frame -11 (before -premountFor 10)
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(9, tree);
+      expect(html).not.toContain('data-frame');
+    });
+
+    it('does not premount during render mode', () => {
+      setEnvironment({ isRendering: true, isPlayer: false });
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(15, tree);
+      expect(html).not.toContain('data-frame');
+    });
+  });
 });
 
 describe('Series', () => {
@@ -97,5 +152,50 @@ describe('Series', () => {
 describe('useCurrentFrame', () => {
   it('explains where it can be used', () => {
     expect(() => renderToStaticMarkup(<Probe name="x" />)).toThrow(/inside a <Stage>/);
+  });
+});
+
+
+describe('studio timeline registration', () => {
+  it('registers absolute nested and series offsets, then removes them', async () => {
+    setEnvironment({ isStudio: true });
+    let root: ReturnType<typeof create>;
+    try {
+      await act(() => {
+        root = create(
+          <Stage config={config} frame={12}>
+            <Sequence name="parent" from={5}>
+              <Series><Series.Sequence name="first" durationInFrames={3} /><Series.Sequence name="second" durationInFrames={10} /></Series>
+            </Sequence>
+          </Stage>,
+        );
+      });
+      expect(getTimelineSnapshot()).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'parent', from: 5, depth: 0 }),
+        expect.objectContaining({ name: 'first', from: 5, depth: 1 }),
+        expect.objectContaining({ name: 'second', from: 8, depth: 1 }),
+      ]));
+      await act(() => {
+        root.unmount();
+      });
+      expect(getTimelineSnapshot()).toEqual([]);
+    } finally {
+      resetEnvironment();
+    }
+  });
+
+  it('does not register outside Studio or without a name', async () => {
+    for (const isStudio of [false, true]) {
+      setEnvironment({ isStudio });
+      let root: ReturnType<typeof create>;
+      await act(() => {
+        root = create(<Stage config={config} frame={0}><Sequence {...(!isStudio ? { name: 'hidden' } : {})} /></Stage>);
+      });
+      expect(getTimelineSnapshot()).toEqual([]);
+      await act(() => {
+        root.unmount();
+      });
+    }
+    resetEnvironment();
   });
 });

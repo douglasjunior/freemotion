@@ -3,6 +3,9 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import type { AnyComposition } from '../runtime/composition.js';
 import { Player } from '../runtime/player.js';
 
+import { keyAction } from './keys.js';
+import { Timeline } from './timeline.js';
+
 
 const ui = {
   bg: '#09090d',
@@ -29,8 +32,11 @@ export function timecode(frame: number, fps: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}.${rest}`;
 }
 
-function readUrl(list: readonly AnyComposition[]): { composition: AnyComposition | undefined; frame: number } {
-  const params = new URLSearchParams(location.search);
+export function readUrl(
+  list: readonly AnyComposition[],
+  search = typeof location !== 'undefined' ? location.search : '',
+): { composition: AnyComposition | undefined; frame: number } {
+  const params = new URLSearchParams(search);
   const composition = list.find(item => item.id === params.get('composition')) ?? list[0];
   const frame = Number(params.get('frame')) || 0;
   return { composition, frame: composition ? Math.min(Math.max(0, frame), composition.durationInFrames - 1) : 0 };
@@ -127,6 +133,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
   const [frame, setFrame] = useState(initial.frame);
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(true);
+  const [muted, setMuted] = useState(false);
   const folders = useMemo(() => [...new Set(compositions.map(item => item.folder ?? ''))], [compositions]);
 
   const frameRef = useRef(frame);
@@ -169,23 +176,38 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
   }, [last]);
 
   useEffect(() => {
+    window.focus();
+    const onPointer = () => window.focus();
+    window.addEventListener('pointerover', onPointer);
+    window.addEventListener('pointerenter', onPointer, true);
+    return () => {
+      window.removeEventListener('pointerover', onPointer);
+      window.removeEventListener('pointerenter', onPointer, true);
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!current || event.target instanceof HTMLSelectElement || event.metaKey || event.ctrlKey) {
+      if (!current) {
         return;
       }
-      const step = event.shiftKey ? current.fps : 1;
-      const actions: Record<string, () => void> = {
-        ' ': () => setPlaying(value => !value),
-        ArrowLeft: () => seek(frame - step),
-        ArrowRight: () => seek(frame + step),
-        Home: () => seek(0),
-        End: () => seek(last),
-        l: () => setLoop(value => !value),
-      };
-      const action = actions[event.key];
+      const action = keyAction(event, { fps: current.fps, frame, last });
       if (action) {
         event.preventDefault();
-        action();
+        switch (action.type) {
+          case 'toggle-play':
+            setPlaying(value => !value);
+            break;
+          case 'seek':
+            seek(action.frame);
+            break;
+          case 'toggle-loop':
+            setLoop(value => !value);
+            break;
+          case 'toggle-mute':
+            setMuted(value => !value);
+            break;
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -231,7 +253,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         )}
       </header>
 
-      <main ref={ref} style={{ flex: 1, minHeight: 0, margin: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main ref={ref} onPointerDown={() => window.focus()} style={{ flex: 1, minHeight: 0, margin: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {!current && (
           <div style={{ color: ui.muted, textAlign: 'center', lineHeight: 1.6 }}>
             No compositions yet.<br />
@@ -241,12 +263,13 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         {current && fit > 0 && (
           <div style={{ width: fit, boxShadow: '0 24px 70px rgba(0, 0, 0, 0.55)', borderRadius: 4, overflow: 'hidden' }}>
             <ErrorBoundary key={current.id}>
-              <Player composition={current} frame={frame} />
+              <Player composition={current} frame={frame} playing={playing} muted={muted} />
             </ErrorBoundary>
           </div>
         )}
       </main>
 
+      {current && <Timeline duration={current.durationInFrames} frame={frame} seek={seek} />}
       {current && (
         <footer style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: ui.panel, borderTop: `1px solid ${ui.line}` }}>
           <IconButton label={playing ? 'Pause (space)' : 'Play (space)'} onClick={() => setPlaying(value => !value)}>
@@ -258,6 +281,11 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
             <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 7V6a2 2 0 0 1 2-2h8m-2-2 2 2-2 2M13 9v1a2 2 0 0 1-2 2H3m2 2-2-2 2-2" />
             </svg>
+          </IconButton>
+          <IconButton label={muted ? 'Unmute (M)' : 'Mute (M)'} active={muted} onClick={() => setMuted(value => !value)}>
+            {muted
+              ? <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 3.5 7H1v2h2.5L7 12V4zM15 6l-6 6m0-6 6 6" /></svg>
+              : <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 3.5 7H1v2h2.5L7 12V4zM11 5a4.5 4.5 0 0 1 0 6M13 3a7.5 7.5 0 0 1 0 10" /></svg>}
           </IconButton>
           <input
             type="range"

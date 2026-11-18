@@ -46,12 +46,12 @@ export function freemotionPlugin(entry: string): Plugin {
       return {
         resolve: {
           alias: [{ find: /^freemotion$/, replacement: RUNTIME_ENTRY }],
-          dedupe: ['react', 'react-dom'],
+          dedupe: ['react', 'react-dom', 'three', '@react-three/fiber', '@freemotion/three'],
         },
         optimizeDeps: {
           entries: [entry],
           include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client'],
-          exclude: ['freemotion'],
+          exclude: ['freemotion', '@freemotion/three'],
         },
         server: {
           fs: { allow: [searchForWorkspaceRoot(root), PACKAGE_ROOT] },
@@ -121,20 +121,26 @@ export type ViteConfigOptions = {
   readonly configFile?: string | false;
 };
 
+export type FreemotionViteConfig = InlineConfig & {
+  readonly configDependencies?: readonly string[];
+};
+
 /**
  * The Vite config for a project: its own `vite.config.*` (for aliases, CSS tooling, extra plugins),
  * plus React and the freemotion plugin. React is only added when the project didn't add it.
  */
-export async function createViteConfig({ root, entry, command, configFile }: ViteConfigOptions): Promise<InlineConfig> {
+export async function createViteConfig({ root, entry, command, configFile }: ViteConfigOptions): Promise<FreemotionViteConfig> {
   const loaded = configFile === false
     ? null
     : await loadConfigFromFile({ command, mode: command === 'build' ? 'production' : 'development' }, configFile, root, 'silent');
   const user = loaded?.config ?? {};
   const hasReact = pluginNames(user.plugins).some(name => name.startsWith('vite:react'));
+  const configDependencies = loaded ? Array.from(new Set([loaded.path, ...loaded.dependencies])) : [];
   return mergeConfig(user, {
     root,
     configFile: false,
     clearScreen: false,
     plugins: [...(hasReact ? [] : [react()]), freemotionPlugin(entry)],
-  } satisfies InlineConfig);
+    configDependencies,
+  } satisfies FreemotionViteConfig);
 }
