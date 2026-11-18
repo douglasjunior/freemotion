@@ -392,8 +392,8 @@ Everything is exported from `freemotion`.
 | `spring({ frame, fps, config?, from?, to?, delay? })` | A physical spring from `from` to `to`. `config`: `damping` (10), `mass` (1), `stiffness` (100), `overshootClamping` (false). |
 | `Easing` | `linear`, `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(b)`, `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)` and the modifiers `in`, `out`, `inOut`. |
 | `<AbsoluteFill>` | A full-size, absolutely positioned flex column. The basic layer. |
-| `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
-| `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
+| `<Sequence from durationInFrames name? premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
+| `<Series>` / `<Series.Sequence durationInFrames offset name?>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Freeze frame active?>` | Freezes time for its children at `frame`. Inside it, `<Video>` displays the frozen frame and `<Audio>` stays silent. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
 | `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
@@ -513,7 +513,24 @@ loadFont({
 | `@remotion/three` | `@freemotion/three` and `<ThreeCanvas>`. |
 | `@remotion/fonts` | `loadFont({ family, url, ... })`. |
 | `remotion.config.ts` | CLI flags such as `--codec`, `--concurrency`, `--gl` and `--scale`. |
+| `npx remotion render <entry> <id> <out>` | `npx freemotion render <id> -o <out> --entry <entry>`. |
+| Audio `startFrom` / `endAt` | `<Audio trimBefore={...} trimAfter={...}>` (frames). `<Video>` supports `trimBefore`, but not `trimAfter`. |
 | Remotion Player | `<Player composition={composition} />`; control with `frame`, `playing` and `muted`. |
+
+The following names are retained when moving imports from `remotion` to `freemotion`: `AbsoluteFill`, `Sequence`, `Series`, `Img`, `interpolate`, `spring`, `Easing`, `random`, `staticFile`, `useCurrentFrame`, `useVideoConfig`, `delayRender`, `continueRender` and `cancelRender`. Check component props when migrating: freemotion does not implement every Remotion prop. `<Composition>` is replaced by `defineComposition()` and is not a drop-in component.
+
+Common configuration migrations:
+
+| Remotion configuration | freemotion render flag |
+|---|---|
+| `Config.setCrf(...)` | `--crf` |
+| `Config.setCodec(...)` | `--codec` |
+| `Config.setConcurrency(...)` | `--concurrency` |
+| `Config.setOverwriteOutput(...)` | `--overwrite` / `--no-overwrite` |
+| `Config.setPixelFormat(...)` | `--pixel-format` |
+| `Config.setImageFormat(...)` | `--image-format` |
+| `Config.setChromiumOpenGlRenderer(...)` | `--gl` (select a supported backend) |
+| `Config.setQuality(...)` | `--jpeg-quality` for JPEG frame capture |
 
 To port a project:
 
