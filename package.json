@@ -43,7 +43,9 @@
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
-  "bin": "./dist/node/cli.js",
+  "bin": {
+    "freemotion": "./dist/node/cli.js"
+  },
   "files": [
     "dist",
     "!dist/**/*.spec.*",
@@ -53,8 +55,8 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js",
-    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/node/cli.js && npm run build --workspaces --if-present",
+    "ts": "tsc --noEmit && tsc -p tsconfig.projects.json && npm run ts --workspaces --if-present",
     "lint": "eslint . --cache --cache-location .eslintcache/",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
@@ -78,6 +80,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/react-test-renderer": "^19.3.1",
     "eslint": "^9.39.5",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
@@ -85,6 +88,7 @@
     "globals": "^17.13.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-test-renderer": "^19.3.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"
@@ -92,5 +96,8 @@
   "allowScripts": {
     "unrs-resolver": false,
     "fsevents": false
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

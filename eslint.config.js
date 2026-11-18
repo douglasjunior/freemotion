@@ -20,7 +20,7 @@ export default defineConfig([
     settings: {
       'import/resolver': {
         typescript: {
-          project: ['./tsconfig.json', './tsconfig.projects.json'],
+          project: ['./tsconfig.json', './tsconfig.projects.json', './packages/*/tsconfig.json'],
           noWarnOnMultipleProjects: true,
         },
       },
