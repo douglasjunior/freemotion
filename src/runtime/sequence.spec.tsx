@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create } from 'react-test-renderer';
 
 import { resetEnvironment, setEnvironment } from './environment.js';
 import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Sequence, Series } from './sequence.js';
 import { Stage } from './stage.js';
+import { getTimelineSnapshot } from './timeline-registry.js';
 
 
 const config = { fps: 30, width: 320, height: 180, durationInFrames: 100 };
@@ -150,5 +152,50 @@ describe('Series', () => {
 describe('useCurrentFrame', () => {
   it('explains where it can be used', () => {
     expect(() => renderToStaticMarkup(<Probe name="x" />)).toThrow(/inside a <Stage>/);
+  });
+});
+
+
+describe('studio timeline registration', () => {
+  it('registers absolute nested and series offsets, then removes them', async () => {
+    setEnvironment({ isStudio: true });
+    let root: ReturnType<typeof create>;
+    try {
+      await act(() => {
+        root = create(
+          <Stage config={config} frame={12}>
+            <Sequence name="parent" from={5}>
+              <Series><Series.Sequence name="first" durationInFrames={3} /><Series.Sequence name="second" durationInFrames={10} /></Series>
+            </Sequence>
+          </Stage>,
+        );
+      });
+      expect(getTimelineSnapshot()).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'parent', from: 5, depth: 0 }),
+        expect.objectContaining({ name: 'first', from: 5, depth: 1 }),
+        expect.objectContaining({ name: 'second', from: 8, depth: 1 }),
+      ]));
+      await act(() => {
+        root.unmount();
+      });
+      expect(getTimelineSnapshot()).toEqual([]);
+    } finally {
+      resetEnvironment();
+    }
+  });
+
+  it('does not register outside Studio or without a name', async () => {
+    for (const isStudio of [false, true]) {
+      setEnvironment({ isStudio });
+      let root: ReturnType<typeof create>;
+      await act(() => {
+        root = create(<Stage config={config} frame={0}><Sequence {...(!isStudio ? { name: 'hidden' } : {})} /></Stage>);
+      });
+      expect(getTimelineSnapshot()).toEqual([]);
+      await act(() => {
+        root.unmount();
+      });
+    }
+    resetEnvironment();
   });
 });

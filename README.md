@@ -147,6 +147,8 @@ npx freemotion studio [options]
 | `--config <file>` | Vite config to merge (default: `vite.config.*` in the project) |
 | `--no-config` | Ignore the project's Vite config |
 
+Named `<Sequence name="Scene">` and `<Series.Sequence name="Scene">` components appear as clickable tracks in the Studio timeline. Nested sequences appear only while their parent is mounted.
+
 ### Keyboard Shortcuts
 
 | Key | Action |

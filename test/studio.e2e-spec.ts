@@ -49,8 +49,14 @@ describe('freemotion studio', () => {
     await page.goto(studio.url);
     const select = page.getByLabel('Composition');
     await select.waitFor();
-    expect(await select.locator('option').allTextContents()).toEqual(['Colors', 'Props', 'Held', 'ShotMix', 'Asset']);
+    expect(await select.locator('option').allTextContents()).toEqual(['Colors', 'Timeline', 'Props', 'Held', 'ShotMix', 'Asset']);
     expect(await select.locator('optgroup').getAttribute('label')).toBe('Assets');
+  });
+
+  it('seeks to a named sequence when its track is clicked', async () => {
+    await page.goto(`${studio.url}?composition=Timeline&frame=0`);
+    await page.getByRole('button', { name: 'Scene' }).click();
+    await page.waitForURL(/frame=3/);
   });
 
   it('draws the frame from the URL', async () => {
