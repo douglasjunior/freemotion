@@ -392,8 +392,8 @@ Everything is exported from `freemotion`.
 | `spring({ frame, fps, config?, from?, to?, delay? })` | A physical spring from `from` to `to`. `config`: `damping` (10), `mass` (1), `stiffness` (100), `overshootClamping` (false). |
 | `Easing` | `linear`, `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(b)`, `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)` and the modifiers `in`, `out`, `inOut`. |
 | `<AbsoluteFill>` | A full-size, absolutely positioned flex column. The basic layer. |
-| `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
-| `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
+| `<Sequence from durationInFrames name? premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
+| `<Series>` / `<Series.Sequence durationInFrames offset name?>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Freeze frame active?>` | Freezes time for its children at `frame`. Inside it, `<Video>` displays the frozen frame and `<Audio>` stays silent. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
 | `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
@@ -504,23 +504,48 @@ loadFont({
 
 ## 🔁 Coming from Remotion?
 
-freemotion keeps the names you already know, so most components move over by changing the import:
+| Remotion | freemotion |
+|---|---|
+| `registerRoot` / `<Composition>` | Default-export an array of `defineComposition()` values. |
+| `OffthreadVideo` | `<Video>`: exact decoded frames during render, HTML video in preview. |
+| `Html5Audio` | `<Audio>`: frame-based volume and render mixing. |
+| `getRemotionEnvironment()` | `getEnvironment()` (`isStudio`, `isRendering`, `isPlayer`). |
+| `@remotion/three` | `@freemotion/three` and `<ThreeCanvas>`. |
+| `@remotion/fonts` | `loadFont({ family, url, ... })`. |
+| `remotion.config.ts` | CLI flags such as `--codec`, `--concurrency`, `--gl` and `--scale`. |
+| `npx remotion render <entry> <id> <out>` | `npx freemotion render <id> -o <out> --entry <entry>`. |
+| Audio `startFrom` / `endAt` | `<Audio trimBefore={...} trimAfter={...}>` (frames). `<Video>` supports `trimBefore`, but not `trimAfter`. |
+| Remotion Player | `<Player composition={composition} />`; control with `frame`, `playing` and `muted`. |
 
-```diff
-- import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'remotion';
-+ import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
-```
+The following names are retained when moving imports from `remotion` to `freemotion`: `AbsoluteFill`, `Sequence`, `Series`, `Img`, `interpolate`, `spring`, `Easing`, `random`, `staticFile`, `useCurrentFrame`, `useVideoConfig`, `delayRender`, `continueRender` and `cancelRender`. Check component props when migrating: freemotion does not implement every Remotion prop. `<Composition>` is replaced by `defineComposition()` and is not a drop-in component.
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Freeze`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+Common configuration migrations:
 
-What's different:
+| Remotion configuration | freemotion render flag |
+|---|---|
+| `Config.setCrf(...)` | `--crf` |
+| `Config.setCodec(...)` | `--codec` |
+| `Config.setConcurrency(...)` | `--concurrency` |
+| `Config.setOverwriteOutput(...)` | `--overwrite` / `--no-overwrite` |
+| `Config.setPixelFormat(...)` | `--pixel-format` |
+| `Config.setImageFormat(...)` | `--image-format` |
+| `Config.setChromiumOpenGlRenderer(...)` | `--gl` (select a supported backend) |
+| `Config.setQuality(...)` | `--jpeg-quality` for JPEG frame capture |
 
-- **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
-- **Fonts.** Built-in `loadFont()` replaces `@remotion/fonts`: it registers a `FontFace`, holds the render until loaded, and deduplicates across hot reloads.
-- **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
-- **Not there yet:** `calculateMetadata()` and cloud rendering.
+To port a project:
 
-freemotion is an independent project written from scratch, and it is not affiliated with Remotion.
+1. Install `freemotion`, React 19 and React DOM 19. Replace runtime imports, then replace `OffthreadVideo` and `Html5Audio` with `Video` and `Audio`.
+2. Export compositions from `src/compositions.tsx` using `defineComposition`, including dimensions, fps, duration, component and default props. Move assets to `public/` and reference them with `staticFile()`.
+3. Replace font loaders with `loadFont`, and translate render configuration into CLI flags. For 3D, install `@freemotion/three`, `three` and `@react-three/fiber` 9, then use `ThreeCanvas` with the composition width and height.
+4. Run `freemotion studio --no-open`, inspect audio and named sequence tracks, and render representative frames and videos. Use `--gl swangle` on headless machines without a GPU.
+
+`showInTimeline` and `pauseWhenBuffering` are not supported. Named sequences appear in the Studio timeline. `calculateMetadata()` and cloud rendering are not implemented.
+
+### 3D with React Three Fiber
+
+`@freemotion/three` provides `<ThreeCanvas width={width} height={height}>` for frame-driven R3F scenes. It accepts `camera`, `gl`, `onCreated`, styles and other Canvas props; the frame loop is controlled by freemotion. Install its peer dependencies `three`, `@react-three/fiber` 9, React 19 and React DOM 19. Suspense holds rendering until assets load. See the [package guide](packages/three/README.md) for a complete example. On headless systems, use `freemotion render MyComposition --gl swangle`.
+
+freemotion is an independent project and is not affiliated with Remotion.
 
 ## 🧪 Examples
 
@@ -530,7 +555,7 @@ freemotion is an independent project written from scratch, and it is not affilia
 
 - [x] Audio tracks and `<Audio>`
 - [x] Transparent output (ProRes 4444, VP9 with alpha)
-- [ ] `<Video>` with frame-accurate seeking
+- [x] `<Video>` with frame-accurate seeking
 - [ ] A render button and a props editor in the studio
 - [ ] More `freemotion init` templates
 

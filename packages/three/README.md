@@ -18,3 +18,5 @@ export function Composition() {
 ```
 
 `width` and `height` set the composition size in pixels. `camera`, `gl`, `onCreated`, `style`, `className`, and other Canvas props configure the scene. The frame loop is controlled by freemotion; `frameloop` cannot be overridden. On headless systems, render with `--gl swangle` if WebGL initialization fails.
+
+Suspending assets loaded with `useLoader` hold the render until they resolve. Child errors cancel the render. `useCurrentFrame` and other freemotion hooks are available inside the canvas; derive animation from the frame for deterministic output.
