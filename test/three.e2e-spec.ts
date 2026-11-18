@@ -58,7 +58,7 @@ it('renders consistently with different concurrency', async () => {
   try {
     const outputs = [join(out, 'one.mp4'), join(out, 'four.mp4')];
     for (const [index, output] of outputs.entries()) {
-      const result = await run(['render', 'Cube', '--concurrency', index ? '4' : '1', '--gl', 'swangle', '-o', output], fixture);
+      const result = await run(['render', 'Cube', '--concurrency', index ? '3' : '1', '--image-format', 'png', '--gl', 'swangle', '-o', output], fixture);
       expect(result.code, result.stderr).toBe(0);
     }
     expect(psnr(outputs[0]!, outputs[1]!)).toBeGreaterThanOrEqual(50);
@@ -110,6 +110,14 @@ it('keeps the native canvas size inside the scaled studio player', async () => {
     await page.goto(`${url}?composition=Cube`);
     const canvas = page.locator('canvas');
     await canvas.waitFor();
+    await page.locator('[data-freemotion-stage]').evaluate((stage) => {
+      const container = stage.parentElement?.parentElement;
+      if (container) container.style.width = '64px';
+    });
+    await page.waitForFunction(() => {
+      const el = document.querySelector('canvas');
+      return el && el.width === 128 && el.height === 128 && Math.abs(el.getBoundingClientRect().width - 64) < 1;
+    }, undefined, { timeout: 10000 });
     const dimensions = await canvas.evaluate((element) => {
       const el = element as HTMLCanvasElement;
       return { width: el.width, height: el.height, context: Boolean(el.getContext('webgl2')), bounds: el.getBoundingClientRect().toJSON() };
@@ -117,6 +125,7 @@ it('keeps the native canvas size inside the scaled studio player', async () => {
     expect(dimensions.width).toBe(128);
     expect(dimensions.height).toBe(128);
     expect(dimensions.context).toBe(true);
+    expect(Math.abs(dimensions.bounds.width - 128)).toBeGreaterThan(1);
     expect(dimensions.bounds.width / dimensions.bounds.height).toBeCloseTo(1);
   } finally {
     await browser?.close();
