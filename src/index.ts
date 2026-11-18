@@ -1,4 +1,5 @@
 export { AbsoluteFill, type AbsoluteFillProps } from './runtime/absolute-fill.js';
+export { Audio, type AudioProps } from './runtime/audio.js';
 export {
   defineComposition,
   type AnyComposition,

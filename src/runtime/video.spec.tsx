@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { clearAudioRegistry, collectAudio } from './audio-registry.js';
 import { resetEnvironment, setEnvironment } from './environment.js';
 import { FrameProvider, type VideoConfig } from './frame.js';
 import { resetRenderContext, setRenderContext } from './render-context.js';
@@ -13,11 +14,13 @@ describe('<Video>', () => {
   beforeEach(() => {
     resetEnvironment();
     resetRenderContext();
+    clearAudioRegistry();
   });
 
   afterEach(() => {
     resetEnvironment();
     resetRenderContext();
+    clearAudioRegistry();
   });
 
   it('renders a <video> element outside render mode with preload="auto" and without frame server URL', () => {
@@ -171,5 +174,60 @@ describe('<Video>', () => {
     );
     expect(onError).toHaveBeenCalled();
     consoleSpy.mockRestore();
+  });
+
+  it('registers audio track in render mode with volume envelope', () => {
+    setEnvironment({ isRendering: true, isPlayer: false });
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
+
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={5} offset={20}>
+        <Video src="clip.mp4" volume={f => (f === 5 ? 0.7 : 1)} trimBefore={10} />
+      </FrameProvider>,
+    );
+
+    const assets = collectAudio();
+    expect(assets).toHaveLength(1);
+    expect(assets[0]!.src).toBe('clip.mp4');
+    expect(assets[0]!.startFrame).toBe(20);
+    expect(assets[0]!.trimBefore).toBe(10);
+    expect(assets[0]!.volumes).toEqual([[25, 0.7]]);
+  });
+
+  it('does not register audio track when muted, volume is constant 0, frozen, or premounting', () => {
+    setEnvironment({ isRendering: true, isPlayer: false });
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
+
+    // Muted
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <Video src="clip.mp4" muted />
+      </FrameProvider>,
+    );
+    expect(collectAudio()).toHaveLength(0);
+
+    // Constant volume 0
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={0}>
+        <Video src="clip.mp4" volume={0} />
+      </FrameProvider>,
+    );
+    expect(collectAudio()).toHaveLength(0);
+
+    // Frozen
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={0} frozen>
+        <Video src="clip.mp4" />
+      </FrameProvider>,
+    );
+    expect(collectAudio()).toHaveLength(0);
+
+    // Premounting
+    renderToStaticMarkup(
+      <FrameProvider config={config} frame={0} premounting>
+        <Video src="clip.mp4" />
+      </FrameProvider>,
+    );
+    expect(collectAudio()).toHaveLength(0);
   });
 });

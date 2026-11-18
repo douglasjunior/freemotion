@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import compositions from 'virtual:freemotion/entry';
 
+import { beginAudioFrame, collectAudio } from '../runtime/audio-registry.js';
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
 import { waitForRenderHolds } from '../runtime/delay-render.js';
 import { setEnvironment } from '../runtime/environment.js';
@@ -52,6 +53,7 @@ async function setFrame(frame: number): Promise<void> {
   const { composition, props } = mounted;
   const Component = composition.component;
   renderError = null;
+  beginAudioFrame();
   flushSync(() => {
     root.render(
       <Stage config={composition} frame={frame}>
@@ -99,7 +101,15 @@ function finishSvg(options: SvgExportOptions): Promise<SvgExportResult> {
 async function boot() {
   // With unicode-range, a face is only fetched on first use. Load all of them up front.
   await Promise.all([...document.fonts].map(face => face.load().catch(() => undefined)));
-  window[RENDER_API_GLOBAL] = { compositions: list.map(meta), mount, setFrame, beginSvg, recordSvgFrame, finishSvg };
+  window[RENDER_API_GLOBAL] = {
+    compositions: list.map(meta),
+    mount,
+    setFrame,
+    beginSvg,
+    recordSvgFrame,
+    finishSvg,
+    collectAudio,
+  };
 }
 
 void boot();

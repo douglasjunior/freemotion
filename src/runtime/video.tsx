@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type SyntheticEvent, type VideoHTMLAttributes } from 'react';
 
+import { registerAudio } from './audio-registry.js';
 import { getEnvironment } from './environment.js';
 import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Img } from './img.js';
@@ -65,7 +66,8 @@ export const Video = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const playback = usePlayback();
-  const { frozen, premounting } = useFrameState();
+  const { offset, frozen, premounting } = useFrameState();
+  const env = getEnvironment();
 
   const isPlaying = playback.playing && !frozen && !premounting;
   const effectiveMuted = Boolean(muted || playback.muted || !isPlaying || premounting);
@@ -78,6 +80,20 @@ export const Video = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingSeekRef = useRef(false);
   const queuedTargetRef = useRef<number | null>(null);
+
+  // In render mode, register the video's audio track unless muted, frozen, premounting, or volume is constant 0
+  if (env.isRendering && !muted && !frozen && !premounting && !(typeof volume === 'number' && volume === 0)) {
+    const currentVolume = typeof volume === 'function' ? volume(frame) : volume;
+    registerAudio({
+      src,
+      frame,
+      offset,
+      volume: currentVolume,
+      trimBefore,
+      playbackRate,
+      loop: Boolean(rest.loop),
+    });
+  }
 
   useEffect(() => {
     const el = videoRef.current;
@@ -152,7 +168,6 @@ export const Video = ({
     }
   }, [time, isPlaying, playbackRate, effectiveVolume, effectiveMuted, fps]);
 
-  const env = getEnvironment();
   if (env.isRendering) {
     const serverUrl = getVideoServerUrl();
     if (!serverUrl) {

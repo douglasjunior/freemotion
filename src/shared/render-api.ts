@@ -25,6 +25,19 @@ export type MountOptions = {
   readonly timeoutInMilliseconds?: number;
 };
 
+export type AudioVolumeEntry = readonly [frame: number, volume: number];
+
+export type AudioAsset = {
+  readonly id: string;
+  readonly src: string;
+  readonly startFrame: number;
+  readonly trimBefore: number;
+  readonly trimAfter?: number;
+  readonly playbackRate: number;
+  readonly loop: boolean;
+  readonly volumes: readonly AudioVolumeEntry[];
+};
+
 export type RenderPageApi = {
   readonly compositions: readonly CompositionMeta[];
   /** Selects the composition (props merged over its defaults) for the next `setFrame()` calls. */
@@ -35,6 +48,8 @@ export type RenderPageApi = {
   readonly beginSvg: () => void;
   readonly recordSvgFrame: () => void;
   readonly finishSvg: (options: SvgExportOptions) => Promise<SvgExportResult>;
+  /** Collects all audio assets registered by <Audio> and <Video> across rendered frames, and clears the tab's registry. */
+  readonly collectAudio: () => AudioAsset[];
 };
 
 export const RENDER_API_GLOBAL = '__freemotion';

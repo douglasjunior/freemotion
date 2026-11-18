@@ -306,6 +306,7 @@ Everything is exported from `freemotion`.
 | `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
+| `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
 | `<Video src trimBefore? playbackRate? transparent? volume?>` | Renders a video. In render mode, extracts exact frames from the video frame server. In preview mode, synchronizes an HTML `<video>` element. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
@@ -335,6 +336,26 @@ export const Clip = () => (
 - **Dual-mode synchronization**: In preview (Studio and `<Player>`), renders a synchronized HTML `<video>` element with seamless scrub and playback. In render mode (`freemotion render`), requests exact decoded frames from the built-in HTTP frame server, guaranteeing frame-accurate renders without dropped frames.
 - **Volume control**: Accepts a constant number between `0` and `1`, or a dynamic function `(frame: number) => number` for fades, dips, and custom curves.
 - **Transparency**: With `transparent`, the render pipeline extracts RGBA frames (e.g. from ProRes 4444 or VP9 alpha videos). In preview mode, alpha playback depends on browser support: Chromium supports WebM VP9 with alpha; QuickTime ProRes 4444 with alpha is rendered with an opaque background in browsers that do not natively decode ProRes alpha channels.
+
+### Audio: `<Audio>`
+
+`<Audio>` embeds audio tracks into compositions:
+
+```tsx
+import { Audio, staticFile } from 'freemotion';
+
+export const Soundtrack = () => (
+  <Audio
+    src={staticFile('music.mp3')}
+    volume={frame => (frame < 30 ? frame / 30 : 1)}
+    loop
+  />
+);
+```
+
+- **Render pipeline**: In render mode, `<Audio>` registers audio assets and records their volume envelope across frames. The Node CLI collects and mixes all audio tracks via FFmpeg.
+- **Volume control**: Can be a fixed number or a dynamic function `(frame: number) => number` evaluated against the component's local frame.
+- **Nested sequences**: Automatically tracks offsets across nested `<Sequence>` components.
 
 ### Async data: `delayRender()`
 
