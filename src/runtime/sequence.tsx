@@ -1,9 +1,12 @@
-import { Children, Fragment, isValidElement, type CSSProperties, type ReactNode } from 'react';
+import { Children, Fragment, createContext, isValidElement, useContext, useEffect, useId, type CSSProperties, type ReactNode } from 'react';
 
 import { AbsoluteFill } from './absolute-fill.js';
 import { getEnvironment } from './environment.js';
 import { FrameProvider, useFrameState } from './frame.js';
+import { addTimelineEntry } from './timeline-registry.js';
 
+
+const DepthContext = createContext(0);
 
 export type SequenceProps = {
   /** Frame of the parent timeline where this sequence starts. Default `0`. */
@@ -49,6 +52,12 @@ export const Sequence = ({
   }
   const { config, frame, offset: parentOffset, frozen: parentFrozen } = useFrameState();
   const local = frame - from;
+  const id = useId();
+  const depth = useContext(DepthContext);
+  useEffect(() => {
+    if (!name || !getEnvironment().isStudio) return;
+    return addTimelineEntry({ id, name, from: parentOffset + from, durationInFrames, depth });
+  }, [id, name, parentOffset, from, durationInFrames, depth]);
 
   const isPremounting = !getEnvironment().isRendering
     && premountFor > 0
@@ -70,7 +79,7 @@ export const Sequence = ({
       frozen={effectiveFrozen}
       premounting={isPremounting}
     >
-      {children}
+      <DepthContext.Provider value={depth + 1}>{children}</DepthContext.Provider>
     </FrameProvider>
   );
 

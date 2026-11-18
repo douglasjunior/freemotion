@@ -4,6 +4,7 @@ import type { AnyComposition } from '../runtime/composition.js';
 import { Player } from '../runtime/player.js';
 
 import { keyAction } from './keys.js';
+import { Timeline } from './timeline.js';
 
 
 const ui = {
@@ -268,6 +269,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         )}
       </main>
 
+      {current && <Timeline duration={current.durationInFrames} frame={frame} seek={seek} />}
       {current && (
         <footer style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: ui.panel, borderTop: `1px solid ${ui.line}` }}>
           <IconButton label={playing ? 'Pause (space)' : 'Play (space)'} onClick={() => setPlaying(value => !value)}>
