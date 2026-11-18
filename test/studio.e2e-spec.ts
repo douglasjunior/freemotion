@@ -1,18 +1,20 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createServer as createHttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright-core';
 
 import { CLI, FIXTURE } from './helpers.js';
 
 
-function startStudio(): Promise<{ child: ChildProcess; url: string }> {
+function startStudio(): Promise<{ child: ChildProcess; url: string; stdout: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, 'studio', '--port', '0'], { cwd: FIXTURE });
+    const child = spawn(process.execPath, [CLI, 'studio', '--port', '0', '--no-open'], { cwd: FIXTURE });
     let output = '';
     child.stdout!.on('data', (chunk: Buffer) => {
       output += chunk;
       const match = /running at (http:\/\/\S+)/.exec(output);
       if (match) {
-        resolve({ child, url: match[1]! });
+        resolve({ child, url: match[1]!, stdout: output });
       }
     });
     child.stderr!.on('data', (chunk: Buffer) => (output += chunk));
@@ -70,6 +72,55 @@ describe('freemotion studio', () => {
     await page.getByLabel('Composition').selectOption('Props');
     await page.waitForURL(/composition=Props/);
     expect(await stageBackground(page)).toBe('rgb(255, 0, 0)');
+  });
+
+  it('emits the ready signal to stdout on startup', () => {
+    expect(studio.stdout).toMatch(/freemotion studio running at http:\/\/\S+/);
+    expect(studio.stdout).toMatch(/Studio ready at http:\/\/\S+/);
+  });
+
+  it('does not send X-Frame-Options or frame-ancestors headers on GET /', async () => {
+    const res = await fetch(studio.url);
+    expect(res.headers.get('x-frame-options')).toBeNull();
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).not.toContain('frame-ancestors');
+  });
+
+  it('opens at deep link query parameters ?composition=Colors&frame=5', async () => {
+    await page.goto(`${studio.url}?composition=Colors&frame=5`);
+    await page.locator('[data-freemotion-stage]').waitFor();
+    expect(await page.getByText('frame 5 / 9').count()).toBe(1);
+    expect(await stageBackground(page)).toBe('rgb(0, 0, 255)');
+  });
+
+  it('embeds studio in an iframe from another origin/port and supports shortcuts', async () => {
+    const parentServer = createHttpServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`<!DOCTYPE html><html><body><iframe id="studio-frame" src="${studio.url}?composition=Colors&frame=4" width="1000" height="800"></iframe></body></html>`);
+    });
+    await new Promise<void>(resolve => parentServer.listen(0, resolve));
+    const parentPort = (parentServer.address() as AddressInfo).port;
+    const parentUrl = `http://localhost:${parentPort}/`;
+
+    try {
+      const parentPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await parentPage.goto(parentUrl);
+      const frame = parentPage.frameLocator('#studio-frame');
+      const stage = frame.locator('[data-freemotion-stage]');
+      await stage.waitFor();
+
+      // Check that frame 4 loaded in iframe
+      expect(await frame.getByText('frame 4 / 9').count()).toBe(1);
+
+      // Focus the iframe and press ArrowRight to test shortcuts inside iframe
+      await stage.click();
+      await parentPage.keyboard.press('ArrowRight');
+      await frame.getByText('frame 5 / 9').waitFor();
+      expect(await frame.getByText('frame 5 / 9').count()).toBe(1);
+      await parentPage.close();
+    } finally {
+      parentServer.close();
+    }
   });
 
   it('runs without page errors', () => {

@@ -31,6 +31,14 @@ describe('parseCommand', () => {
       name: 'studio',
       options: { root: '/project', entry: undefined, configFile: false, port: 4000, host: undefined, open: true },
     });
+    expect(parse('studio')).toEqual({
+      name: 'studio',
+      options: { root: '/project', entry: undefined, configFile: undefined, port: undefined, host: undefined, open: undefined },
+    });
+    expect(parse('studio', '--no-open')).toEqual({
+      name: 'studio',
+      options: { root: '/project', entry: undefined, configFile: undefined, port: undefined, host: undefined, open: false },
+    });
     expect(() => parse('studio', '--port', 'abc')).toThrow(/--port/);
   });
 

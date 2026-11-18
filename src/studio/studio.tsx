@@ -3,6 +3,8 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import type { AnyComposition } from '../runtime/composition.js';
 import { Player } from '../runtime/player.js';
 
+import { keyAction } from './keys.js';
+
 
 const ui = {
   bg: '#09090d',
@@ -29,8 +31,11 @@ export function timecode(frame: number, fps: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}.${rest}`;
 }
 
-function readUrl(list: readonly AnyComposition[]): { composition: AnyComposition | undefined; frame: number } {
-  const params = new URLSearchParams(location.search);
+export function readUrl(
+  list: readonly AnyComposition[],
+  search = typeof location !== 'undefined' ? location.search : '',
+): { composition: AnyComposition | undefined; frame: number } {
+  const params = new URLSearchParams(search);
   const composition = list.find(item => item.id === params.get('composition')) ?? list[0];
   const frame = Number(params.get('frame')) || 0;
   return { composition, frame: composition ? Math.min(Math.max(0, frame), composition.durationInFrames - 1) : 0 };
@@ -169,23 +174,31 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
   }, [last]);
 
   useEffect(() => {
+    window.focus();
+    const onPointerEnter = () => window.focus();
+    window.addEventListener('pointerenter', onPointerEnter);
+    return () => window.removeEventListener('pointerenter', onPointerEnter);
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!current || event.target instanceof HTMLSelectElement || event.metaKey || event.ctrlKey) {
+      if (!current) {
         return;
       }
-      const step = event.shiftKey ? current.fps : 1;
-      const actions: Record<string, () => void> = {
-        ' ': () => setPlaying(value => !value),
-        ArrowLeft: () => seek(frame - step),
-        ArrowRight: () => seek(frame + step),
-        Home: () => seek(0),
-        End: () => seek(last),
-        l: () => setLoop(value => !value),
-      };
-      const action = actions[event.key];
+      const action = keyAction(event, { fps: current.fps, frame, last });
       if (action) {
         event.preventDefault();
-        action();
+        switch (action.type) {
+          case 'toggle-play':
+            setPlaying(value => !value);
+            break;
+          case 'seek':
+            seek(action.frame);
+            break;
+          case 'toggle-loop':
+            setLoop(value => !value);
+            break;
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -231,7 +244,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         )}
       </header>
 
-      <main ref={ref} style={{ flex: 1, minHeight: 0, margin: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main ref={ref} onPointerDown={() => window.focus()} style={{ flex: 1, minHeight: 0, margin: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {!current && (
           <div style={{ color: ui.muted, textAlign: 'center', lineHeight: 1.6 }}>
             No compositions yet.<br />
