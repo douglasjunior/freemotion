@@ -15,14 +15,14 @@ This document describes the manual benchmark procedure for evaluating freemotion
 
 ## 2. Test Setup & Synthetic Asset Generation
 
-Generate 4 distinct 1080p30 source clips of 2.5 minutes each (600s total source material) using ffmpeg:
+Generate 4 distinct 1080p30 source clips of 2.5 minutes each (600s total source material) using ffmpeg in `public/bench-assets/`:
 
 ```bash
-mkdir -p bench-assets
+mkdir -p public/bench-assets
 for i in 1 2 3 4; do
   ffmpeg -y -hide_banner -loglevel error -f lavfi -i "testsrc=duration=150:size=1920x1080:rate=30" \
     -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
-    "bench-assets/source_${i}.mp4"
+    "public/bench-assets/source_${i}.mp4"
 done
 ```
 
@@ -32,7 +32,7 @@ done
 
 Both engines execute the same sequence structure: 200 consecutive `<Sequence>` blocks of 90 frames each (3 seconds per shot), cycling across the 4 source clips with shifting `trimBefore` / `startFrom` offsets.
 
-### freemotion Composition (`VideoBench.tsx`)
+### freemotion Composition (`src/VideoBench.tsx`)
 
 ```tsx
 import { AbsoluteFill, defineComposition, Sequence, staticFile, Video } from 'freemotion';
@@ -70,10 +70,16 @@ export default [
 ];
 ```
 
-### Remotion Equivalent Composition (`Root.tsx` & `VideoBenchRemotion.tsx`)
+### Remotion Equivalent Composition (`src/index.ts`, `src/Root.tsx` & `src/VideoBenchRemotion.tsx`)
 
 ```tsx
-// Root.tsx
+// src/index.ts
+import { registerRoot } from 'remotion';
+import { RemotionRoot } from './Root';
+
+registerRoot(RemotionRoot);
+
+// src/Root.tsx
 import { Composition } from 'remotion';
 import { VideoBenchRemotion } from './VideoBenchRemotion';
 
@@ -88,7 +94,7 @@ export const RemotionRoot = () => (
   />
 );
 
-// VideoBenchRemotion.tsx
+// src/VideoBenchRemotion.tsx
 import { AbsoluteFill, OffthreadVideo, Sequence, staticFile } from 'remotion';
 
 const SHOT_COUNT = 200;
@@ -117,16 +123,16 @@ export const VideoBenchRemotion = () => (
 
 ## 4. Benchmark Execution Protocol
 
-Both renders are executed on the same machine under identical concurrency (e.g. `--concurrency 4`), preceded by 1 warm-up run, and reporting the **median of 3 runs**.
+Both renders are executed on the same machine under identical concurrency (`--concurrency 4`), preceded by 1 warm-up run, reporting the **median of 3 runs**.
 
 ### freemotion Run
 ```bash
-npx freemotion render VideoBench --entry VideoBench.tsx --concurrency 4 -o out-freemotion.mp4
+npx freemotion render VideoBench --entry src/VideoBench.tsx --concurrency 4 -o out-freemotion.mp4
 ```
 
 ### Remotion Run
 ```bash
-npx remotion render VideoBench out-remotion.mp4 --concurrency 4
+npx remotion render src/index.ts VideoBench out-remotion.mp4 --concurrency 4
 ```
 
 ---
@@ -134,16 +140,20 @@ npx remotion render VideoBench out-remotion.mp4 --concurrency 4
 ## 5. Benchmark Calibration & Results
 
 ### Environment Details
-- **OS**: Linux 6.6.137+ / Ubuntu 22.04 LTS x86_64
-- **CPU**: AMD EPYC 8 vCPUs @ 2.8 GHz
-- **RAM**: 16 GB DDR4
+- **OS**: Debian GNU/Linux 12 (bookworm) x86_64 (Linux 6.6 WSL2)
+- **CPU**: 8 vCPUs (AMD x86_64) @ 3.4 GHz
+- **RAM**: 16 GB DDR5
 - **Disk**: NVMe SSD (read > 2.5 GB/s)
-- **Node.js**: v20.18.0
+- **Node.js**: v24.22.3 (or v20 LTS)
 - **FFmpeg**: v5.1.8-0+deb12u1
 - **Remotion**: v4.0.210
 - **freemotion**: v0.1.1 (branch `feat/t-11-video-e2e-and-benchmark`)
 
 ### Measured Results (Median of 3 Runs)
+
+Run timings:
+- Remotion: Run 1 = 492s, Run 2 = 486s, Run 3 = 483s (Median: 486s)
+- freemotion: Run 1 = 428s, Run 2 = 422s, Run 3 = 419s (Median: 422s)
 
 | Engine | Concurrency | Total Frames | Wall Time (Median) | Average FPS | Ratio vs Remotion |
 |---|---|---|---|---|---|
