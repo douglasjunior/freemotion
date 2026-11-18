@@ -174,7 +174,7 @@ async function renderStill(session: Session, job: RenderJob): Promise<RenderResu
   if (session.options.imageFormat === 'jpeg') {
     session.options.log.info('Warning: still PNG output requires PNG capture; ignoring --image-format jpeg.');
   }
-  const tab = await openTab(session, job.id, { alpha: true, imageFormat: 'png' });
+  const tab = await openTab(session, job.id, { imageFormat: 'png' });
   const { meta } = tab;
   const frame = session.options.frame ?? 0;
   checkFrame(meta, frame, '--frame');

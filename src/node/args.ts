@@ -317,6 +317,13 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
         if (!allowedPixelFormats.includes(values['pixel-format'] as PixelFormat)) {
           throw new Error(`Codec "${effectiveCodec}" does not support pixel format "${values['pixel-format']}". Valid pixel formats: ${allowedPixelFormats.join(', ')}.`);
         }
+        if (effectiveCodec === 'prores') {
+          const profile = (values['prores-profile'] as ProResProfile | undefined) ?? 'hq';
+          const is4444 = profile === '4444' || profile === '4444-xq';
+          if (is4444 !== (values['pixel-format'] === 'yuva444p10le')) {
+            throw new Error('ProRes 4444 profiles need --pixel-format yuva444p10le; the other profiles need yuv422p10le.');
+          }
+        }
       }
 
       return {

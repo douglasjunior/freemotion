@@ -31,6 +31,13 @@ describe('freemotion render', () => {
     expect(centerPixel(output)).toEqual(BLUE);
   });
 
+  it('renders a still PNG with default white background on unpainted areas', async () => {
+    const output = join(OUT, 'still-white-bg.png');
+    expect((await run(['render', 'AlphaBox', '--entry', 'src/alpha.tsx', '--frame', '0', '-o', output], FIXTURE)).code).toBe(0);
+    const corner = pixelAt(output, 2, 2, 0);
+    expect(corner).toEqual([255, 255, 255, 255]);
+  });
+
   it('renders a frame range', async () => {
     const output = join(OUT, 'range.mp4');
     expect((await run(['render', 'Colors', '--frames', '5-9', '-o', output], FIXTURE)).code).toBe(0);

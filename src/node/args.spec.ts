@@ -91,6 +91,12 @@ describe('parseCommand', () => {
     expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'prores', '--prores-profile', '4444')).toMatchObject({
       options: { codec: 'prores', proresProfile: '4444' },
     });
+    expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'prores', '--prores-profile', '4444', '--pixel-format', 'yuva444p10le')).toMatchObject({
+      options: { codec: 'prores', proresProfile: '4444', pixelFormat: 'yuva444p10le' },
+    });
+    expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'prores', '--prores-profile', 'hq', '--pixel-format', 'yuv422p10le')).toMatchObject({
+      options: { codec: 'prores', proresProfile: 'hq', pixelFormat: 'yuv422p10le' },
+    });
     expect(parse('render', 'Intro', '-o', 'out.mov', '--codec', 'h264')).toMatchObject({
       options: { codec: 'h264' },
     });
@@ -130,6 +136,9 @@ describe('parseCommand', () => {
     [['render', 'A', '--codec', 'h264', '--pixel-format', 'yuva420p'], /Codec "h264" does not support pixel format "yuva420p"/],
     [['render', 'A', '-o', 'out.webm', '--pixel-format', 'yuv422p'], /Codec "vp9" does not support pixel format "yuv422p"/],
     [['render', 'A', '-o', 'out.mov', '--pixel-format', 'yuv420p'], /Codec "prores" does not support pixel format "yuv420p"/],
+    [['render', 'A', '-o', 'out.mov', '--prores-profile', '4444', '--pixel-format', 'yuv422p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
+    [['render', 'A', '-o', 'out.mov', '--prores-profile', 'hq', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
+    [['render', 'A', '-o', 'out.mov', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
     [['render', 'A', '-o', 'out.gif', '--pixel-format', 'yuv420p'], /Format "gif" does not support --pixel-format/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],
