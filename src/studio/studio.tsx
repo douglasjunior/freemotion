@@ -175,9 +175,13 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
 
   useEffect(() => {
     window.focus();
-    const onPointerEnter = () => window.focus();
-    window.addEventListener('pointerenter', onPointerEnter);
-    return () => window.removeEventListener('pointerenter', onPointerEnter);
+    const onPointer = () => window.focus();
+    window.addEventListener('pointerover', onPointer);
+    window.addEventListener('pointerenter', onPointer, true);
+    return () => {
+      window.removeEventListener('pointerover', onPointer);
+      window.removeEventListener('pointerenter', onPointer, true);
+    };
   }, []);
 
   useEffect(() => {

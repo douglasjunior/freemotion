@@ -161,8 +161,8 @@ The URL keeps the composition and the frame (`?composition=Intro&frame=42`), so 
 
 ### Embedding in an iframe
 
-The studio can be embedded in an `<iframe>` (e.g. preview and review panels on another port or origin):
-- Cross-origin framing is enabled by default with `cors: true` and without `X-Frame-Options` or `frame-ancestors` restrictions.
+The studio can be embedded in an `<iframe>` (e.g. preview and review panels on another port):
+- Framing is allowed without `X-Frame-Options` or `frame-ancestors` restrictions.
 - Keyboard shortcuts continue to work inside the iframe once focused (the studio focuses its window on mount, on hover, and on clicking inside the player area).
 - On startup, the CLI prints stable ready lines to stdout:
   ```text

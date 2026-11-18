@@ -12,9 +12,10 @@ function startStudio(): Promise<{ child: ChildProcess; url: string; stdout: stri
     let output = '';
     child.stdout!.on('data', (chunk: Buffer) => {
       output += chunk;
-      const match = /running at (http:\/\/\S+)/.exec(output);
-      if (match) {
-        resolve({ child, url: match[1]!, stdout: output });
+      const runningMatch = /freemotion studio running at (http:\/\/\S+)/.exec(output);
+      const readyMatch = /Studio ready at (http:\/\/\S+)/.exec(output);
+      if (runningMatch && readyMatch) {
+        resolve({ child, url: runningMatch[1]!, stdout: output });
       }
     });
     child.stderr!.on('data', (chunk: Buffer) => (output += chunk));
@@ -93,10 +94,10 @@ describe('freemotion studio', () => {
     expect(await stageBackground(page)).toBe('rgb(0, 0, 255)');
   });
 
-  it('embeds studio in an iframe from another origin/port and supports shortcuts', async () => {
+  it('embeds studio in an iframe from another origin/port and supports shortcuts on hover', async () => {
     const parentServer = createHttpServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`<!DOCTYPE html><html><body><iframe id="studio-frame" src="${studio.url}?composition=Colors&frame=4" width="1000" height="800"></iframe></body></html>`);
+      res.end(`<!DOCTYPE html><html><body><input id="outside-input" /><iframe id="studio-frame" src="${studio.url}?composition=Colors&frame=4" width="1000" height="800"></iframe></body></html>`);
     });
     await new Promise<void>(resolve => parentServer.listen(0, resolve));
     const parentPort = (parentServer.address() as AddressInfo).port;
@@ -105,6 +106,10 @@ describe('freemotion studio', () => {
     try {
       const parentPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await parentPage.goto(parentUrl);
+
+      // Focus an input outside the iframe first to ensure the iframe is not focused initially
+      await parentPage.locator('#outside-input').focus();
+
       const frame = parentPage.frameLocator('#studio-frame');
       const stage = frame.locator('[data-freemotion-stage]');
       await stage.waitFor();
@@ -112,8 +117,8 @@ describe('freemotion studio', () => {
       // Check that frame 4 loaded in iframe
       expect(await frame.getByText('frame 4 / 9').count()).toBe(1);
 
-      // Focus the iframe and press ArrowRight to test shortcuts inside iframe
-      await stage.click();
+      // Hover over the iframe stage (without clicking) to trigger pointerenter capture focus
+      await stage.hover();
       await parentPage.keyboard.press('ArrowRight');
       await frame.getByText('frame 5 / 9').waitFor();
       expect(await frame.getByText('frame 5 / 9').count()).toBe(1);
