@@ -9,6 +9,10 @@
 #   Provider: GitHub Actions · Repository: douglasjunior/freemotion
 #   Workflow filename: publish.yml · Environment: (leave empty)
 #
+# The version commit is pushed by the `douglasjunior-bot` GitHub App, which is on
+# the bypass list of the ruleset that protects the default branch. The App ID
+# and private key live in the RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY secrets.
+#
 # A release marked as "pre-release" is published under the `next` dist-tag
 # instead of `latest`.
 
@@ -19,7 +23,7 @@ on:
     types: [published]
 
 permissions:
-  contents: write # commit the version back to the default branch
+  contents: read
   id-token: write # npm Trusted Publishing and provenance
 
 concurrency:
@@ -31,7 +35,15 @@ jobs:
     name: Publish ${{ github.event.release.tag_name }} to npm
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -60,13 +72,20 @@ jobs:
         # `prepack` builds dist/ before packing.
         run: npm publish --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
 
+      - name: Read the App's bot user id
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: echo "id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)" >> "$GITHUB_OUTPUT"
+
       - name: Commit the version to ${{ github.event.repository.default_branch }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.bot.outputs.id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git checkout -- package.json package-lock.json
           git fetch origin "$BRANCH"
           git checkout -B "$BRANCH" "origin/$BRANCH"
