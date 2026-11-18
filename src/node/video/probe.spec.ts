@@ -1,4 +1,19 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { clearProbeCache, parseFfmpegInfo, probeMedia } from './probe.js';
+
+
+const hasFfmpeg = (() => {
+  try {
+    const res = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+})();
 
 
 describe('parseFfmpegInfo', () => {
@@ -92,12 +107,41 @@ Input #0, mp3, from 'audio.mp3':
 });
 
 describe('probeMedia', () => {
+  let tmpDir: string;
+  let sampleVideo: string;
+
+  beforeAll(() => {
+    if (!hasFfmpeg) {
+      return;
+    }
+    tmpDir = mkdtempSync(join(tmpdir(), 'probe-test-'));
+    sampleVideo = join(tmpDir, 'test_probe.mp4');
+    spawnSync('ffmpeg', [
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=duration=2:size=64x64:rate=30',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      sampleVideo,
+    ], { stdio: 'ignore' });
+  });
+
+  afterAll(() => {
+    if (tmpDir) {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   beforeEach(() => {
     clearProbeCache();
   });
 
-  it('reads metadata using real ffmpeg and caches the result', async () => {
-    const info = await probeMedia('/tmp/test_probe.mp4');
+  it.runIf(hasFfmpeg)('reads metadata using real ffmpeg and caches the result', async () => {
+    const info = await probeMedia(sampleVideo);
     expect(info.fps).toBe(30);
     expect(info.width).toBe(64);
     expect(info.height).toBe(64);
@@ -105,7 +149,7 @@ describe('probeMedia', () => {
     expect(info.codec).toBe('h264');
 
     // Calling again returns cached object without re-spawning
-    const cached = await probeMedia('/tmp/test_probe.mp4');
+    const cached = await probeMedia(sampleVideo);
     expect(cached).toBe(info);
   });
 });
