@@ -34,8 +34,12 @@ describe('planJobs', () => {
     expect(() => planJobs({ ...base, compositions: 'all', output: 'x.mp4' }, available)).toThrow(/single composition/);
   });
 
+  it('plans a mov file', () => {
+    expect(planJobs({ ...base, output: 'x.mov' }, available)).toEqual([{ id: 'Intro', output: 'x.mov', format: 'mov' }]);
+  });
+
   it('needs a known extension', () => {
-    expect(() => planJobs({ ...base, output: 'x.mov' }, available)).toThrow(/Can't tell the format/);
+    expect(() => planJobs({ ...base, output: 'x.avi' }, available)).toThrow(/Can't tell the format/);
   });
 
   it('fails when there is nothing to render', () => {

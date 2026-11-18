@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { centerPixel, expectColor, FIXTURE, hasEncoder, probe, run } from './helpers.js';
+import { centerPixel, expectColor, FIXTURE, hasEncoder, pixelAt, probe, run } from './helpers.js';
 
 
 const OUT = join(FIXTURE, 'out');
@@ -29,6 +29,13 @@ describe('freemotion render', () => {
     expect((await run(['render', 'Colors', '--frame', '7', '-o', output], FIXTURE)).code).toBe(0);
     expect(probe(output)).toMatchObject({ width: 64, height: 64 });
     expect(centerPixel(output)).toEqual(BLUE);
+  });
+
+  it('renders a still PNG with default white background on unpainted areas', async () => {
+    const output = join(OUT, 'still-white-bg.png');
+    expect((await run(['render', 'AlphaBox', '--entry', 'src/alpha.tsx', '--frame', '0', '-o', output], FIXTURE)).code).toBe(0);
+    const corner = pixelAt(output, 2, 2, 0);
+    expect(corner).toEqual([255, 255, 255, 255]);
   });
 
   it('renders a frame range', async () => {
@@ -81,6 +88,59 @@ describe('freemotion render', () => {
     for (const id of ['Colors', 'Props', 'Held', 'Asset']) {
       expect(existsSync(join(outDir, `${id}.png`))).toBe(true);
     }
+  });
+
+  it('renders an MP4 captured with --image-format jpeg, maintaining color', async () => {
+    const output = join(OUT, 'jpeg-capture.mp4');
+    const { code } = await run(['render', 'Colors', '--image-format', 'jpeg', '--jpeg-quality', '90', '-o', output], FIXTURE);
+    expect(code).toBe(0);
+    expectColor(centerPixel(output, 2), RED, 6);
+    expectColor(centerPixel(output, 7), BLUE, 6);
+  });
+
+  it.runIf(hasEncoder('libvpx-vp9'))('renders a WebM with alpha and transparent corners', async () => {
+    const output = join(OUT, 'alpha.webm');
+    const { code } = await run([
+      'render', 'AlphaBox',
+      '--entry', 'src/alpha.tsx',
+      '--pixel-format', 'yuva420p',
+      '-o', output,
+    ], FIXTURE);
+    expect(code).toBe(0);
+    const corner = pixelAt(output, 2, 2, 0);
+    expect(corner[3]).toBe(0);
+    const center = pixelAt(output, 32, 32, 0);
+    expectColor(center.slice(0, 3), RED, 6);
+    expect(center[3]).toBe(255);
+  });
+
+  it.runIf(hasEncoder('prores_ks'))('renders ProRes 4444 in .mov with alpha', async () => {
+    const output = join(OUT, 'alpha.mov');
+    const { code } = await run([
+      'render', 'AlphaBox',
+      '--entry', 'src/alpha.tsx',
+      '--codec', 'prores',
+      '--prores-profile', '4444',
+      '-o', output,
+    ], FIXTURE);
+    expect(code).toBe(0);
+    expect(probe(output)).toMatchObject({ codec_name: 'prores' });
+    const corner = pixelAt(output, 2, 2, 0);
+    expect(corner[3]).toBe(0);
+    const center = pixelAt(output, 32, 32, 0);
+    expectColor(center.slice(0, 3), RED, 6);
+    expect(center[3]).toBe(255);
+  });
+
+  it('fails before rendering when --no-overwrite is passed and file exists', async () => {
+    const output = join(OUT, 'existing.mp4');
+    expect((await run(['render', 'Colors', '-o', output], FIXTURE)).code).toBe(0);
+    expect(existsSync(output)).toBe(true);
+
+    const { code, stderr } = await run(['render', 'Colors', '-o', output, '--no-overwrite'], FIXTURE);
+    expect(code).toBe(1);
+    expect(stderr).toContain('already exists');
+    expect(stderr).toContain('--overwrite');
   });
 
   describe('errors', () => {
