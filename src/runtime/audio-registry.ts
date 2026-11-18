@@ -20,17 +20,39 @@ export type RegisterAudioOptions = {
   readonly trimAfter?: number;
   readonly playbackRate?: number;
   readonly loop?: boolean;
+  readonly ordinal?: number;
 };
 
-/** Extracts clean pathname without base, leading slashes or query/hash. */
+/**
+ * Extracts a clean media source identifier for audio and video assets:
+ * - Decodes percent-encoded characters (e.g. "my%20song.mp3" -> "my song.mp3").
+ * - Strips query parameters (?...) and hash fragments (#...).
+ * - Strips leading slashes for local paths.
+ * - For absolute remote URLs (e.g. "https://host/path"), preserves protocol and host.
+ */
 export function cleanAudioSrc(src: string): string {
-  try {
-    const url = new URL(src, 'http://localhost');
-    return url.pathname.replace(/^\/+/, '');
-  } catch {
-    const [path] = src.split(/[?#]/);
-    return (path ?? src).replace(/^\/+/, '');
+  const match = src.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/?#]+/);
+  if (match) {
+    const origin = match[0];
+    const rest = src.slice(origin.length);
+    const [path] = rest.split(/[?#]/);
+    let decoded = path ?? '';
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      // Keep original if decoding fails
+    }
+    return `${origin}/${decoded.replace(/^\/+/, '')}`;
   }
+
+  const [path] = src.split(/[?#]/);
+  let cleaned = (path ?? src).replace(/^\/+/, '');
+  try {
+    cleaned = decodeURIComponent(cleaned);
+  } catch {
+    // Keep original if decoding fails
+  }
+  return cleaned;
 }
 
 /** Pure 64-bit FNV-1a hash function returning a 16-character hex string. */
@@ -66,7 +88,12 @@ type MutableAudioAsset = {
   readonly trimAfter?: number;
   readonly playbackRate: number;
   readonly loop: boolean;
+  readonly ordinal: number;
   readonly volumes: AudioVolumeEntry[];
+};
+
+export type RegisteredAudioAsset = AudioAsset & {
+  readonly ordinal: number;
 };
 
 const registry = new Map<string, MutableAudioAsset>();
@@ -84,7 +111,7 @@ export function clearAudioRegistry(): void {
 }
 
 /** Registers an audio asset occurrence during frame rendering. */
-export function registerAudio(options: RegisterAudioOptions): AudioAsset {
+export function registerAudio(options: RegisterAudioOptions): RegisteredAudioAsset {
   const cleanSrc = cleanAudioSrc(options.src);
   const startFrame = options.offset;
   const trimBefore = Math.max(0, Math.round(options.trimBefore ?? 0));
@@ -94,8 +121,13 @@ export function registerAudio(options: RegisterAudioOptions): AudioAsset {
 
   // Group key for ordinal tracking within this frame
   const groupKey = `${cleanSrc}|${startFrame}|${trimBefore}|${trimAfter ?? ''}|${playbackRate}|${loop ? 1 : 0}`;
-  const ordinal = ordinalCounts.get(groupKey) ?? 0;
-  ordinalCounts.set(groupKey, ordinal + 1);
+  let ordinal: number;
+  if (options.ordinal !== undefined) {
+    ordinal = options.ordinal;
+  } else {
+    ordinal = ordinalCounts.get(groupKey) ?? 0;
+    ordinalCounts.set(groupKey, ordinal + 1);
+  }
 
   const id = audioAssetId({
     src: cleanSrc,
@@ -117,13 +149,17 @@ export function registerAudio(options: RegisterAudioOptions): AudioAsset {
       trimAfter,
       playbackRate,
       loop,
+      ordinal,
       volumes: [],
     };
     registry.set(id, asset);
   }
 
   const absoluteFrame = options.offset + options.frame;
-  const volume = Math.max(0, options.volume);
+  const rawVolume = typeof options.volume === 'number' && Number.isFinite(options.volume)
+    ? options.volume
+    : 0;
+  const volume = Math.max(0, rawVolume);
 
   const lastVolume = asset.volumes[asset.volumes.length - 1];
   if (lastVolume && lastVolume[0] === absoluteFrame) {

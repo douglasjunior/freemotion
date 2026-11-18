@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearAudioRegistry, collectAudio } from './audio-registry.js';
+import { createDomHarness } from '../../test/dom-harness.js';
+
+import { beginAudioFrame, clearAudioRegistry, collectAudio } from './audio-registry.js';
+import { Audio } from './audio.js';
 import { resetEnvironment, setEnvironment } from './environment.js';
 import { FrameProvider, type VideoConfig } from './frame.js';
 import { resetRenderContext, setRenderContext } from './render-context.js';
@@ -9,6 +12,7 @@ import { Video } from './video.js';
 
 
 const config: VideoConfig = { fps: 30, width: 1920, height: 1080, durationInFrames: 300 };
+const harness = createDomHarness();
 
 describe('<Video>', () => {
   beforeEach(() => {
@@ -180,7 +184,8 @@ describe('<Video>', () => {
     setEnvironment({ isRendering: true, isPlayer: false });
     setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
 
-    renderToStaticMarkup(
+    beginAudioFrame();
+    harness.render(
       <FrameProvider config={config} frame={5} offset={20}>
         <Video src="clip.mp4" volume={f => (f === 5 ? 0.7 : 1)} trimBefore={10} />
       </FrameProvider>,
@@ -194,12 +199,30 @@ describe('<Video>', () => {
     expect(assets[0]!.volumes).toEqual([[25, 0.7]]);
   });
 
+  it('registers audio track when volume function evaluates to 0 (only constant 0 is discarded)', () => {
+    setEnvironment({ isRendering: true, isPlayer: false });
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
+
+    beginAudioFrame();
+    harness.render(
+      <FrameProvider config={config} frame={0}>
+        <Video src="clip.mp4" volume={f => (f === 0 ? 0 : 0.8)} />
+      </FrameProvider>,
+    );
+
+    const assets = collectAudio();
+    expect(assets).toHaveLength(1);
+    expect(assets[0]!.src).toBe('clip.mp4');
+    expect(assets[0]!.volumes).toEqual([[0, 0]]);
+  });
+
   it('does not register audio track when muted, volume is constant 0, frozen, or premounting', () => {
     setEnvironment({ isRendering: true, isPlayer: false });
     setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
 
     // Muted
-    renderToStaticMarkup(
+    beginAudioFrame();
+    harness.render(
       <FrameProvider config={config} frame={0}>
         <Video src="clip.mp4" muted />
       </FrameProvider>,
@@ -207,7 +230,8 @@ describe('<Video>', () => {
     expect(collectAudio()).toHaveLength(0);
 
     // Constant volume 0
-    renderToStaticMarkup(
+    beginAudioFrame();
+    harness.render(
       <FrameProvider config={config} frame={0}>
         <Video src="clip.mp4" volume={0} />
       </FrameProvider>,
@@ -215,7 +239,8 @@ describe('<Video>', () => {
     expect(collectAudio()).toHaveLength(0);
 
     // Frozen
-    renderToStaticMarkup(
+    beginAudioFrame();
+    harness.render(
       <FrameProvider config={config} frame={0} frozen>
         <Video src="clip.mp4" />
       </FrameProvider>,
@@ -223,11 +248,58 @@ describe('<Video>', () => {
     expect(collectAudio()).toHaveLength(0);
 
     // Premounting
-    renderToStaticMarkup(
+    beginAudioFrame();
+    harness.render(
       <FrameProvider config={config} frame={0} premounting>
         <Video src="clip.mp4" />
       </FrameProvider>,
     );
     expect(collectAudio()).toHaveLength(0);
+  });
+
+  it('creates two distinct assets for identical Video components (or Audio + Video) in the same frame', () => {
+    setEnvironment({ isRendering: true, isPlayer: false });
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
+
+    beginAudioFrame();
+    harness.render(
+      <FrameProvider config={config} frame={0}>
+        <Video src="common.mp4" volume={0.3} />
+        <Video src="common.mp4" volume={0.9} />
+        <Audio src="common.mp4" volume={0.5} />
+      </FrameProvider>,
+    );
+
+    const assets = collectAudio();
+    expect(assets).toHaveLength(3);
+    const ids = new Set(assets.map(a => a.id));
+    expect(ids.size).toBe(3);
+    expect(assets[0]!.volumes).toEqual([[0, 0.3]]);
+    expect(assets[1]!.volumes).toEqual([[0, 0.9]]);
+    expect(assets[2]!.volumes).toEqual([[0, 0.5]]);
+  });
+
+  it('updates volume in-place on same-frame re-render without creating a second asset', () => {
+    setEnvironment({ isRendering: true, isPlayer: false });
+    setRenderContext({ videoServerUrl: 'http://127.0.0.1:9999' });
+
+    beginAudioFrame();
+    const root = harness.render(
+      <FrameProvider config={config} frame={0}>
+        <Video src="clip.mp4" volume={0.2} />
+      </FrameProvider>,
+    );
+
+    // Re-render in the same frame
+    harness.render(
+      <FrameProvider config={config} frame={0}>
+        <Video src="clip.mp4" volume={0.75} />
+      </FrameProvider>,
+      root,
+    );
+
+    const assets = collectAudio();
+    expect(assets).toHaveLength(1);
+    expect(assets[0]!.volumes).toEqual([[0, 0.75]]);
   });
 });

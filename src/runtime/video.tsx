@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type SyntheticEvent, type VideoHTMLAttributes } from 'react';
 
-import { registerAudio } from './audio-registry.js';
+import { cleanAudioSrc, registerAudio } from './audio-registry.js';
 import { getEnvironment } from './environment.js';
 import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Img } from './img.js';
@@ -43,8 +43,7 @@ function filterImgProps(props: Record<string, unknown>): Record<string, unknown>
 }
 
 export function cleanVideoSrc(src: string): string {
-  const [path] = src.split(/[?#]/);
-  return (path ?? src).replace(/^\/+/, '');
+  return cleanAudioSrc(src);
 }
 
 /**
@@ -80,11 +79,30 @@ export const Video = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingSeekRef = useRef(false);
   const queuedTargetRef = useRef<number | null>(null);
+  const audioRegistrationRef = useRef<{
+    lastRenderedFrame: number | null;
+    ordinal: number | null;
+  }>({
+    lastRenderedFrame: null,
+    ordinal: null,
+  });
 
   // In render mode, register the video's audio track unless muted, frozen, premounting, or volume is constant 0
-  if (env.isRendering && !muted && !frozen && !premounting && !(typeof volume === 'number' && volume === 0)) {
+  useIsomorphicLayoutEffect(() => {
+    if (!env.isRendering || muted || frozen || premounting) {
+      return;
+    }
+    if (typeof volume === 'number' && volume === 0) {
+      return;
+    }
+
+    const absoluteFrame = offset + frame;
+    const isSameFrameReRender =
+      audioRegistrationRef.current.lastRenderedFrame === absoluteFrame
+      && audioRegistrationRef.current.ordinal !== null;
+
     const currentVolume = typeof volume === 'function' ? volume(frame) : volume;
-    registerAudio({
+    const asset = registerAudio({
       src,
       frame,
       offset,
@@ -92,8 +110,12 @@ export const Video = ({
       trimBefore,
       playbackRate,
       loop: Boolean(rest.loop),
+      ordinal: isSameFrameReRender ? audioRegistrationRef.current.ordinal! : undefined,
     });
-  }
+
+    audioRegistrationRef.current.lastRenderedFrame = absoluteFrame;
+    audioRegistrationRef.current.ordinal = asset.ordinal;
+  });
 
   useEffect(() => {
     const el = videoRef.current;

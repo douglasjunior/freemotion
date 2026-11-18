@@ -16,10 +16,13 @@ describe('audio-registry', () => {
   });
 
   describe('cleanAudioSrc', () => {
-    it('normalizes paths and removes leading slashes or query parameters', () => {
+    it('normalizes paths, decodes percent-encoded characters, strips query/hash, and preserves host for remote URLs', () => {
       expect(cleanAudioSrc('/music/song.mp3')).toBe('music/song.mp3');
       expect(cleanAudioSrc('sound.wav?v=2#t=10')).toBe('sound.wav');
-      expect(cleanAudioSrc('http://localhost:3000/assets/sound.mp3')).toBe('assets/sound.mp3');
+      expect(cleanAudioSrc('my%20song.mp3')).toBe('my song.mp3');
+      expect(cleanAudioSrc('folder%2Fsub%20track.wav?test=1')).toBe('folder/sub track.wav');
+      expect(cleanAudioSrc('https://a.com/assets/sound%201.mp3?v=1')).toBe('https://a.com/assets/sound 1.mp3');
+      expect(cleanAudioSrc('https://b.com/assets/sound%201.mp3')).toBe('https://b.com/assets/sound 1.mp3');
     });
   });
 
@@ -99,6 +102,45 @@ describe('audio-registry', () => {
 
       const secondCollection = collectAudio();
       expect(secondCollection).toHaveLength(0);
+    });
+
+    it('safely coerces non-finite or negative volumes to 0', () => {
+      beginAudioFrame();
+      registerAudio({ src: 'safe.mp3', offset: 0, frame: 0, volume: Number.NaN });
+
+      beginAudioFrame();
+      registerAudio({ src: 'safe.mp3', offset: 0, frame: 1, volume: -5 });
+
+      beginAudioFrame();
+      registerAudio({ src: 'safe.mp3', offset: 0, frame: 2, volume: Number.POSITIVE_INFINITY });
+
+      const assets = collectAudio();
+      expect(assets).toHaveLength(1);
+      expect(assets[0]!.volumes).toEqual([
+        [0, 0],
+        [1, 0],
+        [2, 0],
+      ]);
+    });
+
+    it('updates volume in-place on same-frame re-render when ordinal is passed', () => {
+      beginAudioFrame();
+      const first = registerAudio({ src: 'track.mp3', offset: 0, frame: 0, volume: 0.2 });
+      expect(first.ordinal).toBe(0);
+
+      // Re-render in the same frame passing existing ordinal
+      const updated = registerAudio({
+        src: 'track.mp3',
+        offset: 0,
+        frame: 0,
+        volume: 0.8,
+        ordinal: first.ordinal,
+      });
+
+      expect(updated.id).toBe(first.id);
+      const assets = collectAudio();
+      expect(assets).toHaveLength(1);
+      expect(assets[0]!.volumes).toEqual([[0, 0.8]]);
     });
   });
 });

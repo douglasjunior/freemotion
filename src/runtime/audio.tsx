@@ -1,3 +1,5 @@
+import { useEffect, useLayoutEffect, useRef } from 'react';
+
 import { registerAudio } from './audio-registry.js';
 import { getEnvironment } from './environment.js';
 import { useFrameState } from './frame.js';
@@ -12,6 +14,8 @@ export type AudioProps = {
   readonly trimAfter?: number;
   readonly muted?: boolean;
 };
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * Declares an audio track in a composition.
@@ -34,10 +38,27 @@ export const Audio = ({
   const { frame, offset, frozen, premounting } = useFrameState();
   const env = getEnvironment();
 
-  // In render mode, register the audio track during frame rendering
-  if (env.isRendering && !muted && !frozen && !premounting) {
+  const registrationRef = useRef<{
+    lastRenderedFrame: number | null;
+    ordinal: number | null;
+  }>({
+    lastRenderedFrame: null,
+    ordinal: null,
+  });
+
+  // In render mode, registers the audio track and per-frame volume envelope once per commit
+  useIsomorphicLayoutEffect(() => {
+    if (!env.isRendering || muted || frozen || premounting) {
+      return;
+    }
+
+    const absoluteFrame = offset + frame;
+    const isSameFrameReRender =
+      registrationRef.current.lastRenderedFrame === absoluteFrame
+      && registrationRef.current.ordinal !== null;
+
     const currentVolume = typeof volume === 'function' ? volume(frame) : volume;
-    registerAudio({
+    const asset = registerAudio({
       src,
       frame,
       offset,
@@ -46,8 +67,12 @@ export const Audio = ({
       trimAfter,
       playbackRate,
       loop,
+      ordinal: isSameFrameReRender ? registrationRef.current.ordinal! : undefined,
     });
-  }
+
+    registrationRef.current.lastRenderedFrame = absoluteFrame;
+    registrationRef.current.ordinal = asset.ordinal;
+  });
 
   return null;
 };
