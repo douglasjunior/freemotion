@@ -1,9 +1,9 @@
-# @freemotion/three
+# @free-motion/three
 
-Use React Three Fiber scenes in a freemotion composition. Install `@freemotion/three` alongside its peer dependencies `freemotion`, `react`, `react-dom`, `three`, and `@react-three/fiber` (version 9).
+Use React Three Fiber scenes in a freemotion composition. Install `@free-motion/three` alongside its peer dependencies `freemotion`, `react`, `react-dom`, `three`, and `@react-three/fiber` (version 9).
 
 ```tsx
-import { ThreeCanvas } from '@freemotion/three';
+import { ThreeCanvas } from '@free-motion/three';
 import { useCurrentFrame, useVideoConfig } from 'freemotion';
 
 function Scene() {

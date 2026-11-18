@@ -54,7 +54,7 @@ importers:
       '@fontsource-variable/inter':
         specifier: ^5.3.0
         version: 5.3.0
-      '@freemotion/three':
+      '@free-motion/three':
         specifier: workspace:*
         version: link:../three
       '@react-three/fiber':

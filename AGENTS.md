@@ -50,7 +50,7 @@ packages/freemotion/
 ├── tsconfig.build.json       # Emits dist/ from src/
 └── tsconfig.projects.json    # Type checks templates/ and test/fixtures/ (bundler resolution)
 
-packages/three/               # @freemotion/three (ThreeCanvas)
+packages/three/               # @free-motion/three (ThreeCanvas)
 ```
 
 ## How the Pieces Fit

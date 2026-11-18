@@ -1,6 +1,6 @@
 {
-  "name": "@freemotion/three",
-  "version": "0.1.1",
+  "name": "@free-motion/three",
+  "version": "0.2.0",
   "type": "module",
   "exports": {
     ".": {
@@ -22,22 +22,22 @@
     "prepack": "pnpm run build"
   },
   "peerDependencies": {
-    "freemotion": "^0.1.1",
-    "three": ">=0.160.0",
     "@react-three/fiber": "^9.0.0",
+    "freemotion": "^0.2.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "three": ">=0.160.0"
   },
   "devDependencies": {
-    "freemotion": "workspace:*",
-    "three": "^0.180.0",
-    "@types/three": "^0.180.0",
     "@react-three/fiber": "^9.0.0",
     "@types/react": "^19.3.0",
+    "@types/react-test-renderer": "^19.3.1",
+    "@types/three": "^0.180.0",
+    "freemotion": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-test-renderer": "^19.3.1",
-    "@types/react-test-renderer": "^19.3.1",
+    "three": "^0.180.0",
     "vitest": "^5.0.5"
   }
 }

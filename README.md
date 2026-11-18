@@ -510,7 +510,7 @@ loadFont({
 | `OffthreadVideo` | `<Video>`: exact decoded frames during render, HTML video in preview. |
 | `Html5Audio` | `<Audio>`: frame-based volume and render mixing. |
 | `getRemotionEnvironment()` | `getEnvironment()` (`isStudio`, `isRendering`, `isPlayer`). |
-| `@remotion/three` | `@freemotion/three` and `<ThreeCanvas>`. |
+| `@remotion/three` | `@free-motion/three` and `<ThreeCanvas>`. |
 | `@remotion/fonts` | `loadFont({ family, url, ... })`. |
 | `remotion.config.ts` | CLI flags such as `--codec`, `--concurrency`, `--gl` and `--scale`. |
 | `npx remotion render <entry> <id> <out>` | `npx freemotion render <id> -o <out> --entry <entry>`. |
@@ -536,14 +536,14 @@ To port a project:
 
 1. Install `freemotion`, React 19 and React DOM 19. Replace runtime imports, then replace `OffthreadVideo` and `Html5Audio` with `Video` and `Audio`.
 2. Export compositions from `src/compositions.tsx` using `defineComposition`, including dimensions, fps, duration, component and default props. Move assets to `public/` and reference them with `staticFile()`.
-3. Replace font loaders with `loadFont`, and translate render configuration into CLI flags. For 3D, install `@freemotion/three`, `three` and `@react-three/fiber` 9, then use `ThreeCanvas` with the composition width and height.
+3. Replace font loaders with `loadFont`, and translate render configuration into CLI flags. For 3D, install `@free-motion/three`, `three` and `@react-three/fiber` 9, then use `ThreeCanvas` with the composition width and height.
 4. Run `freemotion studio --no-open`, inspect audio and named sequence tracks, and render representative frames and videos. Use `--gl swangle` on headless machines without a GPU.
 
 `showInTimeline` and `pauseWhenBuffering` are not supported. Named sequences appear in the Studio timeline. `calculateMetadata()` and cloud rendering are not implemented.
 
 ### 3D with React Three Fiber
 
-`@freemotion/three` provides `<ThreeCanvas width={width} height={height}>` for frame-driven R3F scenes. It accepts `camera`, `gl`, `onCreated`, styles and other Canvas props; the frame loop is controlled by freemotion. Install its peer dependencies `three`, `@react-three/fiber` 9, React 19 and React DOM 19. Suspense holds rendering until assets load. See the [package guide](packages/three/README.md) for a complete example. On headless systems, use `freemotion render MyComposition --gl swangle`.
+`@free-motion/three` provides `<ThreeCanvas width={width} height={height}>` for frame-driven R3F scenes. It accepts `camera`, `gl`, `onCreated`, styles and other Canvas props; the frame loop is controlled by freemotion. Install its peer dependencies `three`, `@react-three/fiber` 9, React 19 and React DOM 19. Suspense holds rendering until assets load. See the [package guide](packages/three/README.md) for a complete example. On headless systems, use `freemotion render MyComposition --gl swangle`.
 
 freemotion is an independent project and is not affiliated with Remotion.
 

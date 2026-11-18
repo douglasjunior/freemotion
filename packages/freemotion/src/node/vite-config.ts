@@ -46,12 +46,12 @@ export function freemotionPlugin(entry: string): Plugin {
       return {
         resolve: {
           alias: [{ find: /^freemotion$/, replacement: RUNTIME_ENTRY }],
-          dedupe: ['react', 'react-dom', 'three', '@react-three/fiber', '@freemotion/three'],
+          dedupe: ['react', 'react-dom', 'three', '@react-three/fiber', '@free-motion/three'],
         },
         optimizeDeps: {
           entries: [entry],
           include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client'],
-          exclude: ['freemotion', '@freemotion/three'],
+          exclude: ['freemotion', '@free-motion/three'],
         },
         server: {
           fs: { allow: [searchForWorkspaceRoot(root), PACKAGE_ROOT] },

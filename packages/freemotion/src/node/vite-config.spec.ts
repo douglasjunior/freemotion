@@ -22,7 +22,7 @@ describe('freemotionPlugin', () => {
   it('aliases freemotion to the shared runtime and dedupes React', () => {
     const config = (plugin.config as (config: object) => { resolve: { alias: { find: RegExp; replacement: string }[]; dedupe: string[] } })({ root: '/project' });
     expect(config.resolve.alias[0]).toEqual({ find: /^freemotion$/, replacement: RUNTIME_ENTRY });
-    expect(config.resolve.dedupe).toEqual(['react', 'react-dom', 'three', '@react-three/fiber', '@freemotion/three']);
+    expect(config.resolve.dedupe).toEqual(['react', 'react-dom', 'three', '@react-three/fiber', '@free-motion/three']);
   });
 });
 

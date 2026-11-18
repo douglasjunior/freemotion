@@ -1,4 +1,4 @@
-import { ThreeCanvas } from '@freemotion/three';
+import { ThreeCanvas } from '@free-motion/three';
 import { useLoader } from '@react-three/fiber';
 import { defineComposition, staticFile, useCurrentFrame } from 'freemotion';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';

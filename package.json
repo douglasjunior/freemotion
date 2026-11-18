@@ -1,6 +1,6 @@
 {
   "name": "freemotion-monorepo",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Make videos with React. Monorepo of the freemotion runtime, CLI and companion packages.",
   "author": {

@@ -77,7 +77,7 @@ jobs:
 
       - name: Publish to npm
         # `prepack` builds dist/ before packing. pnpm turns `workspace:*` into the real version.
-        run: pnpm --filter freemotion --filter @freemotion/three publish --no-git-checks --access public --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
+        run: pnpm --filter freemotion --filter @free-motion/three publish --no-git-checks --access public --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
 
       - name: Read the App's bot user id
         id: bot
