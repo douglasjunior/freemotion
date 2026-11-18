@@ -112,7 +112,8 @@ export function planAudioSync({
     : audioTargetTime({ frame, fps, trimBefore, trimAfter, playbackRate, loop, duration });
 
   const isPastTrimAfter = trimAfter !== undefined && !loop && target >= (trimAfter / fps);
-  const silent = Boolean(frozen || premounting || !playing || isPastTrimAfter);
+  const pastEnd = !loop && duration !== undefined && Number.isFinite(duration) && duration > 0 && target >= duration;
+  const silent = Boolean(frozen || premounting || !playing || isPastTrimAfter || pastEnd);
 
   const drift = Math.abs(current - target);
   const driftExceeded = drift > DRIFT_TOLERANCE;
@@ -124,7 +125,7 @@ export function planAudioSync({
   if (silent) {
     play = false;
     pause = paused !== true;
-    seek = driftExceeded;
+    seek = !pastEnd && driftExceeded;
   } else {
     play = paused !== false;
     pause = false;

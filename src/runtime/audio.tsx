@@ -81,7 +81,7 @@ export const Audio = ({
   });
 
   // In preview mode, imperatively manage HTMLAudioElement lifecycle
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (typeof document === 'undefined' || env.isRendering) {
       return;
     }
@@ -98,14 +98,6 @@ export const Audio = ({
     };
   }, [src, env.isRendering]);
 
-  useEffect(() => {
-    const el = audioRef.current;
-    if (el) {
-      el.loop = loop;
-      el.playbackRate = playbackRate;
-    }
-  }, [loop, playbackRate]);
-
   // In preview mode, synchronize audio playback, volume and muted state on each frame render
   useIsomorphicLayoutEffect(() => {
     if (env.isRendering) {
@@ -116,6 +108,8 @@ export const Audio = ({
       return;
     }
 
+    el.loop = loop;
+    el.playbackRate = playbackRate;
     const effectiveVolume = evaluateAudioVolume(volume, frame);
     const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : undefined;
 

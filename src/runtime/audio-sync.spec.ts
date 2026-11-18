@@ -139,6 +139,21 @@ describe('planAudioSync', () => {
     expect(plan.pause).toBe(true);
   });
 
+  it('does not restart or seek a non-looping track at or past its duration', () => {
+    for (const target of [5, 6]) {
+      for (const paused of [true, false]) {
+        const plan = planAudioSync({ playing: true, current: 4, target, duration: 5, paused });
+        expect(plan).toMatchObject({ silent: true, play: false, pause: !paused, seek: false });
+      }
+    }
+  });
+
+  it('ignores unknown or invalid durations', () => {
+    for (const duration of [0, -1, Infinity, NaN]) {
+      expect(planAudioSync({ playing: true, current: 0, target: 6, duration }).silent).toBe(false);
+    }
+  });
+
   it('pauses and stays silent when frozen is true', () => {
     const plan = planAudioSync({
       playing: true,
