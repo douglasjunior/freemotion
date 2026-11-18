@@ -189,6 +189,9 @@ npx freemotion render --all                      # every composition, to out/
 --pixel-format <format>     Pixel format (default: yuv420p)
 --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+--audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
+--muted                     Mute all audio in the rendered video
+--silent-audio              Add a silent audio track when no audio assets are present
 --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
 --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)

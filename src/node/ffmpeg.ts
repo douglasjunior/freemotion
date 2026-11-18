@@ -44,6 +44,21 @@ export const DEFAULT_CODEC: Record<ContainerFormat, Codec> = {
   mov: 'prores',
 };
 
+export type AudioCodec = 'aac' | 'opus';
+export const AUDIO_CODECS: readonly AudioCodec[] = ['aac', 'opus'];
+
+export const FORMAT_AUDIO_CODECS: Record<ContainerFormat, readonly AudioCodec[]> = {
+  mp4: ['aac'],
+  webm: ['opus'],
+  mov: ['aac'],
+};
+
+export const DEFAULT_AUDIO_CODEC: Record<ContainerFormat, AudioCodec> = {
+  mp4: 'aac',
+  webm: 'opus',
+  mov: 'aac',
+};
+
 export const CODEC_PIXEL_FORMATS: Record<Codec, readonly PixelFormat[]> = {
   h264: ['yuv420p', 'yuv422p', 'yuv444p', 'yuv420p10le'],
   h265: ['yuv420p', 'yuv422p', 'yuv444p', 'yuv420p10le'],

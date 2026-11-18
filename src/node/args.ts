@@ -4,15 +4,18 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import {
+  AUDIO_CODECS,
   CODEC_PIXEL_FORMATS,
   CODECS,
   DEFAULT_CODEC,
+  FORMAT_AUDIO_CODECS,
   FORMAT_CODECS,
   formatFromPath,
   IMAGE_FORMATS,
   OUTPUT_FORMATS,
   PIXEL_FORMATS,
   PRORES_PROFILES,
+  type AudioCodec,
   type Codec,
   type ContainerFormat,
   type ImageFormat,
@@ -79,6 +82,9 @@ Options
   --pixel-format <format>     Pixel format (default: yuv420p)
   --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
   --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+  --audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
+  --muted                     Mute all audio in the rendered video
+  --silent-audio              Add a silent audio track when no audio assets are present
   --overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
   --concurrency <n>           Browser tabs rendering in parallel (default: ${defaultConcurrency()})
   --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
@@ -232,6 +238,9 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'pixel-format': { type: 'string' },
           'prores-profile': { type: 'string' },
           crf: { type: 'string' },
+          muted: { type: 'boolean' },
+          'silent-audio': { type: 'boolean' },
+          'audio-codec': { type: 'string' },
           overwrite: { type: 'boolean' },
           concurrency: { type: 'string' },
           'video-cache-mb': { type: 'string' },
@@ -330,6 +339,20 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
         }
       }
 
+      if (values['audio-codec'] && !(AUDIO_CODECS as readonly string[]).includes(values['audio-codec'])) {
+        throw new Error(`--audio-codec must be one of ${AUDIO_CODECS.join(', ')} (got "${values['audio-codec']}").`);
+      }
+
+      if (values['audio-codec']) {
+        if (targetFormat !== 'mp4' && targetFormat !== 'webm' && targetFormat !== 'mov') {
+          throw new Error(`Format "${targetFormat}" does not support --audio-codec.`);
+        }
+        const allowedAudioCodecs = FORMAT_AUDIO_CODECS[targetFormat as ContainerFormat];
+        if (!allowedAudioCodecs.includes(values['audio-codec'] as AudioCodec)) {
+          throw new Error(`Format "${targetFormat}" does not support audio codec "${values['audio-codec']}". Use "${allowedAudioCodecs.join(', ')}" instead.`);
+        }
+      }
+
       if (values.progress !== undefined && values.progress !== 'json') {
         throw new Error(`--progress must be json (got "${values.progress}").`);
       }
@@ -356,6 +379,9 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           pixelFormat: values['pixel-format'] as PixelFormat | undefined,
           proresProfile: values['prores-profile'] as ProResProfile | undefined,
           crf: values.crf === undefined ? undefined : integer(values.crf, '--crf', 0),
+          muted: values.muted,
+          silentAudio: values['silent-audio'],
+          audioCodec: values['audio-codec'] as AudioCodec | undefined,
           overwrite: values.overwrite ?? true,
           concurrency: integer(values.concurrency, '--concurrency', 1) ?? defaultConcurrency(),
           videoCacheMb: integer(values['video-cache-mb'], '--video-cache-mb', 1),

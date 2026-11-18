@@ -1,23 +1,26 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { Browser, CDPSession, Page } from 'playwright-core';
 import { build, mergeConfig, preview, type InlineConfig } from 'vite';
 
 import { RENDER_API_GLOBAL, type CompositionMeta } from '../shared/render-api.js';
 
+import { AudioCollector, audioEncodeArgs, mixAudio, planAudio, probeAudioMedia, type AudioProbeInfo } from './audio/index.js';
 import { launchBrowser } from './browser.js';
 import {
   assertFfmpeg,
   DEFAULT_CODEC,
+  DEFAULT_AUDIO_CODEC,
   ffmpegArgs,
   formatFromPath,
   isVideoFormat,
   resolveFfmpeg,
+  type AudioCodec,
   type Codec,
   type ContainerFormat,
   type ImageFormat,
@@ -81,6 +84,12 @@ export type RenderOptions = {
   readonly proresProfile?: ProResProfile;
   /** Overwrite existing files (default: true). */
   readonly overwrite?: boolean;
+  /** Mute all audio. */
+  readonly muted?: boolean;
+  /** Add silent audio stream when no audio assets are present. */
+  readonly silentAudio?: boolean;
+  /** Audio codec: aac or opus. */
+  readonly audioCodec?: AudioCodec;
   /** ffmpeg binary. Default: the project's `ffmpeg-static`, else `ffmpeg` on PATH. */
   readonly ffmpeg?: string;
   readonly browserExecutable?: string;
@@ -103,7 +112,49 @@ type Session = {
   readonly ffmpeg: string;
   readonly videoServerUrl: string;
   readonly reporter: Reporter;
+  readonly publicDir: string;
 };
+
+async function moveFile(source: string, destination: string): Promise<void> {
+  await mkdir(dirname(destination), { recursive: true });
+  try {
+    await rename(source, destination);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EXDEV') {
+      await copyFile(source, destination);
+      await unlink(source);
+    } else {
+      throw error;
+    }
+  }
+}
+
+function runFfmpeg(ffmpeg: string, args: readonly string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
+      stdio: ['ignore', 'inherit', 'pipe'],
+    });
+    let stderr = '';
+    proc.stderr?.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`freemotion: ffmpeg failed with code ${code}: ${stderr.trim()}`));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+function resolveAssetSrc(src: string, publicDir: string): string {
+  if (isAbsolute(src) || src.startsWith('http://') || src.startsWith('https://')) {
+    return src;
+  }
+  return resolve(publicDir, src);
+}
 
 type Tab = {
   readonly page: Page;
@@ -238,6 +289,12 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   const extra = Math.max(0, Math.min(options.concurrency, frames.length) - 1);
   const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id, tabOptions))))];
 
+  let jobTempDir: string | null = null;
+  if (format !== 'gif') {
+    jobTempDir = await mkdtemp(join(tmpdir(), `freemotion-${job.id}-`));
+  }
+  const videoOutput = jobTempDir ? join(jobTempDir, `video.${format}`) : job.output;
+
   const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({
     format,
     fps,
@@ -247,43 +304,147 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     imageFormat,
     crf: options.crf,
     loop: options.loop,
-    overwrite: options.overwrite,
-    output: job.output,
+    overwrite: format === 'gif' ? options.overwrite : true,
+    output: videoOutput,
   }), {
     stdio: ['pipe', 'inherit', 'inherit'],
   });
   const exited = once(ffmpeg, 'close');
   let written = 0;
   let rendered = 0;
+  const collector = new AudioCollector();
 
   try {
-    await produceInOrder({
-      frames,
-      workers: tabs,
-      ahead: tabs.length * 4,
-      produce: async (tab, frame) => {
-        const png = await capture(tab, frame);
-        rendered++;
-        reporter.event({ phase: 'render', id: job.id, done: rendered, total: frames.length });
-        return png;
-      },
-      consume: async (png) => {
-        written++;
-        reporter.event({ phase: 'encode', id: job.id, done: written, total: frames.length });
-        if (!ffmpeg.stdin.write(png)) {
-          await once(ffmpeg.stdin, 'drain');
+    try {
+      await produceInOrder({
+        frames,
+        workers: tabs,
+        ahead: tabs.length * 4,
+        produce: async (tab, frame) => {
+          const png = await capture(tab, frame);
+          rendered++;
+          reporter.event({ phase: 'render', id: job.id, done: rendered, total: frames.length });
+          return png;
+        },
+        consume: async (png) => {
+          written++;
+          reporter.event({ phase: 'encode', id: job.id, done: written, total: frames.length });
+          if (!ffmpeg.stdin.write(png)) {
+            await once(ffmpeg.stdin, 'drain');
+          }
+        },
+      });
+    } finally {
+      ffmpeg.stdin.end();
+    }
+    const [code] = await exited;
+
+    if (format !== 'gif') {
+      for (const tab of tabs) {
+        await collector.collect(tab.page);
+      }
+    }
+    await Promise.all(tabs.map(tab => tab.page.close().catch(() => undefined)));
+
+    if (code !== 0) {
+      throw new Error(`ffmpeg exited with code ${code} while encoding "${job.id}".`);
+    }
+
+    if (format === 'gif') {
+      return { id: job.id, output: job.output, format, frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
+    }
+
+    const isMuted = Boolean(options.muted);
+    const rawAssets = collector.getAssets();
+    const resolvedAssets = rawAssets.map(asset => ({
+      ...asset,
+      src: resolveAssetSrc(asset.src, session.publicDir),
+    }));
+
+    const probeCache = new Map<string, AudioProbeInfo | undefined>();
+    const probe = async (src: string) => {
+      let info = probeCache.get(src);
+      if (info === undefined && !probeCache.has(src)) {
+        try {
+          info = await probeAudioMedia(src, session.ffmpeg);
+        } catch {
+          info = undefined;
         }
-      },
-    });
+        probeCache.set(src, info);
+      }
+      return info;
+    };
+
+    let hasAudio = false;
+    if (!isMuted) {
+      for (const asset of resolvedAssets) {
+        if (asset.volumes.length === 0) continue;
+        const info = await probe(asset.src);
+        if (info?.hasAudio) {
+          hasAudio = true;
+          break;
+        }
+      }
+    }
+
+    const targetAudioCodec = options.audioCodec ?? DEFAULT_AUDIO_CODEC[format as ContainerFormat];
+    const audioArgs = audioEncodeArgs({ codec: targetAudioCodec });
+    const movFlags = format === 'mp4' ? ['-movflags', '+faststart'] : [];
+
+    await mkdir(dirname(job.output), { recursive: true });
+
+    if (isMuted || !hasAudio) {
+      if (!isMuted && options.silentAudio) {
+        reporter.event({ phase: 'mux', id: job.id });
+        await runFfmpeg(session.ffmpeg, [
+          '-i', videoOutput,
+          '-f', 'lavfi',
+          '-i', 'anullsrc=r=48000:cl=stereo',
+          '-c:v', 'copy',
+          ...audioArgs,
+          '-shortest',
+          ...movFlags,
+          job.output,
+        ]);
+      } else {
+        await moveFile(videoOutput, job.output);
+      }
+    } else {
+      const step = options.everyNthFrame ?? 1;
+      const range = { from: frames[0]!, to: frames[0]! + frames.length * step };
+      const plan = await planAudio({
+        assets: resolvedAssets,
+        fps: meta.fps,
+        range,
+        probe,
+        tempDir: jobTempDir!,
+      });
+
+      for (const warning of plan.warnings) {
+        options.log.info(warning);
+      }
+
+      reporter.event({ phase: 'audio', id: job.id });
+      const mixedAudioPath = await mixAudio(plan, { ffmpeg: session.ffmpeg });
+
+      reporter.event({ phase: 'mux', id: job.id });
+      await runFfmpeg(session.ffmpeg, [
+        '-i', videoOutput,
+        '-i', mixedAudioPath,
+        '-c:v', 'copy',
+        ...audioArgs,
+        ...movFlags,
+        job.output,
+      ]);
+    }
+
+    return { id: job.id, output: job.output, format, frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
   } finally {
-    ffmpeg.stdin.end();
+    await Promise.all(tabs.map(tab => tab.page.close().catch(() => undefined)));
+    if (jobTempDir) {
+      await rm(jobTempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
-  const [code] = await exited;
-  await Promise.all(tabs.map(tab => tab.page.close()));
-  if (code !== 0) {
-    throw new Error(`ffmpeg exited with code ${code} while encoding "${job.id}".`);
-  }
-  return { id: job.id, output: job.output, format, frames: frames.length, seconds: (Date.now() - startedAt) / 1000 };
 }
 
 /**
@@ -407,6 +568,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
       ffmpeg,
       videoServerUrl: videoServer.url,
       reporter,
+      publicDir,
     };
     const probe = await browser.newPage();
     await probe.goto(session.baseUrl);

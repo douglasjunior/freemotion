@@ -107,6 +107,21 @@ describe('parseCommand', () => {
     });
   });
 
+  it('parses audio flags for mp4, webm and mov', () => {
+    expect(parse('render', 'Intro', '--muted')).toMatchObject({
+      options: { muted: true },
+    });
+    expect(parse('render', 'Intro', '--silent-audio')).toMatchObject({
+      options: { silentAudio: true },
+    });
+    expect(parse('render', 'Intro', '--audio-codec', 'aac')).toMatchObject({
+      options: { audioCodec: 'aac' },
+    });
+    expect(parse('render', 'Intro', '-o', 'out.webm', '--audio-codec', 'opus')).toMatchObject({
+      options: { audioCodec: 'opus' },
+    });
+  });
+
   it('renders every composition with --all', () => {
     expect(parse('render', '--all')).toMatchObject({ options: { compositions: 'all' } });
   });
@@ -152,6 +167,12 @@ describe('parseCommand', () => {
     [['render', 'A', '-o', 'out.mov', '--prores-profile', 'hq', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
     [['render', 'A', '-o', 'out.mov', '--pixel-format', 'yuva444p10le'], /ProRes 4444 profiles need --pixel-format yuva444p10le/],
     [['render', 'A', '-o', 'out.gif', '--pixel-format', 'yuv420p'], /Format "gif" does not support --pixel-format/],
+    [['render', 'A', '--audio-codec', 'flac'], /--audio-codec must be one of/],
+    [['render', 'A', '--audio-codec', 'opus'], /Format "mp4" does not support audio codec "opus"/],
+    [['render', 'A', '-o', 'out.mov', '--audio-codec', 'opus'], /Format "mov" does not support audio codec "opus"/],
+    [['render', 'A', '-o', 'out.webm', '--audio-codec', 'aac'], /Format "webm" does not support audio codec "aac"/],
+    [['render', 'A', '-o', 'out.gif', '--audio-codec', 'aac'], /Format "gif" does not support --audio-codec/],
+    [['render', 'A', '--frame', '0', '--audio-codec', 'aac'], /Format "png" does not support --audio-codec/],
     [['render', 'A', '--progress', 'invalid'], /--progress must be json/],
     [['render', 'A', '--bogus'], /Unknown option/],
     [['publish'], /Unknown command "publish"/],

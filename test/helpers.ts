@@ -93,3 +93,38 @@ export function referenceFrame(file: string, seconds: number, outputPath?: strin
 export function expectColor(actual: readonly number[], expected: readonly number[], tolerance = 0) {
   actual.forEach((value, i) => expect(Math.abs(value - expected[i]!)).toBeLessThanOrEqual(tolerance));
 }
+
+export type AudioStream = {
+  codec_name: string;
+  codec_type: 'audio';
+  sample_rate: string;
+  channels: number;
+};
+
+export function probeAudioStreams(file: string): AudioStream[] {
+  const output = execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', file], { encoding: 'utf8' });
+  const streams = (JSON.parse(output) as { streams: ({ codec_type: string } & AudioStream)[] }).streams;
+  return streams.filter(s => s.codec_type === 'audio');
+}
+
+export function readPcmMono(file: string, sampleRate = 48000): Float32Array {
+  const raw = execFileSync('ffmpeg', [
+    '-v', 'error',
+    '-i', file,
+    '-f', 'f32le',
+    '-ac', '1',
+    '-ar', String(sampleRate),
+    '-',
+  ], { maxBuffer: 64 * 1024 * 1024 });
+  return new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / Float32Array.BYTES_PER_ELEMENT);
+}
+
+export function computeRms(samples: Float32Array, start = 0, end = samples.length): number {
+  let sum = 0;
+  const count = Math.max(1, end - start);
+  for (let i = start; i < end; i++) {
+    const val = samples[i] ?? 0;
+    sum += val * val;
+  }
+  return Math.sqrt(sum / count);
+}
