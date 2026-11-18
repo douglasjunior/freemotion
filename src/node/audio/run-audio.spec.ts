@@ -47,6 +47,25 @@ function generateSilenceThenTone(path: string): Promise<void> {
   });
 }
 
+function generateToneThenSilence(path: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'sine=frequency=1000:duration=0.5',
+      '-f', 'lavfi',
+      '-i', 'anullsrc=r=48000:cl=stereo:d=0.5',
+      '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1,volume=8',
+      '-c:a', 'pcm_s16le',
+      path,
+    ]);
+    proc.on('error', reject);
+    proc.on('close', code => (code === 0 ? resolve() : reject(new Error(`Failed with code ${code}`))));
+  });
+}
+
 function readPcmMono(path: string, sampleRate = 48000): Promise<Float32Array> {
   return new Promise<Float32Array>((resolve, reject) => {
     const proc = spawn('ffmpeg', [
@@ -92,15 +111,18 @@ describe('run-audio (ffmpeg integration)', () => {
   let sine1s: string;
   let sine3s: string;
   let silenceThenTone: string;
+  let toneThenSilence: string;
 
   beforeAll(async () => {
     testDir = await mkdtemp(join(tmpdir(), 'freemotion-run-audio-'));
     sine1s = join(testDir, 'sine_1s.wav');
     sine3s = join(testDir, 'sine_3s.wav');
     silenceThenTone = join(testDir, 'silence_then_tone.wav');
+    toneThenSilence = join(testDir, 'tone_then_silence.wav');
     await generateSine(sine1s, 1, 1000);
     await generateSine(sine3s, 3, 1000);
     await generateSilenceThenTone(silenceThenTone);
+    await generateToneThenSilence(toneThenSilence);
   });
 
   afterAll(async () => {
@@ -231,22 +253,28 @@ describe('run-audio (ffmpeg integration)', () => {
     const out = await mixAudio(plan);
     const pcm = await readPcmMono(out);
 
-    // Compute RMS in 4 quarter windows
-    const quarter = Math.floor(pcm.length / 4);
-    const rms0 = computeRms(pcm, 0, quarter);
-    const rms1 = computeRms(pcm, quarter, quarter * 2);
-    const rms2 = computeRms(pcm, quarter * 2, quarter * 3);
-    const rms3 = computeRms(pcm, quarter * 3, pcm.length);
+    // Assert strictly increasing RMS across 8 windows and check against theoretical RMS
+    const numWindows = 8;
+    const windowSize = Math.floor(pcm.length / numWindows);
+    const durationSec = 2.0;
 
-    expect(rms0).toBeLessThan(rms1);
-    expect(rms1).toBeLessThan(rms2);
-    expect(rms2).toBeLessThan(rms3);
+    let prevRms = -1;
+    for (let k = 0; k < numWindows; k++) {
+      const start = k * windowSize;
+      const end = (k === numWindows - 1) ? pcm.length : (k + 1) * windowSize;
+      const windowRms = computeRms(pcm, start, end);
 
-    // Assert measured values against expected curve (ramp from 0 to 1 with peak RMS ~0.707)
-    // Quarter 1 (0 to 0.25): expected RMS ~ 0.088
-    expect(rms0).toBeCloseTo(0.088, 1);
-    // Quarter 4 (0.75 to 1.0): expected RMS ~ 0.62
-    expect(rms3).toBeGreaterThan(0.5);
+      expect(windowRms).toBeGreaterThan(prevRms);
+      prevRms = windowRms;
+
+      // Theoretical RMS: for sine with peak amplitude 1.0 modulated by v(t) = t / T
+      // RMS in [t1, t2] is (1/sqrt(2)) * sqrt((t1^2 + t1*t2 + t2^2) / (3 * T^2))
+      const t1 = start / 48000;
+      const t2 = end / 48000;
+      const theoreticalRms = (1.0 / Math.SQRT2) * Math.sqrt((t1 * t1 + t1 * t2 + t2 * t2) / (3 * durationSec * durationSec));
+      const relError = Math.abs(windowRms - theoreticalRms) / theoreticalRms;
+      expect(relError).toBeLessThan(0.08); // within 8% relative error
+    }
   });
 
   it('modulates volume envelope with timeline offset without cutting audio tail', async () => {
@@ -325,26 +353,27 @@ describe('run-audio (ffmpeg integration)', () => {
     expect(sec2Rms).toBeGreaterThan(0.5);
   });
 
-  it('correctly handles loop when rendering a segment starting after 1+ loop cycles', async () => {
-    // 1-second loop (30 frames at 30 fps)
-    // Render range from frame 60 to 90 (2.0s to 3.0s, starting in cycle 3)
+  it('correctly handles loop when rendering a segment starting after 1+ loop cycles with non-zero offset', async () => {
+    // toneThenSilence: 0.5s tone + 0.5s silence = 1.0s loop duration (30 frames at 30 fps)
+    // Render range from frame 45 to 105 (1.5s to 3.5s, 60 frames = 2.0s duration)
+    // Offset in loop: 1.5s % 1.0s = 0.5s (which lands in the silence region of toneThenSilence)
     const loopSegmentAsset: AudioAsset = {
-      id: 'loop_segment',
-      src: sine1s,
+      id: 'loop_segment_offset',
+      src: toneThenSilence,
       startFrame: 0,
       trimBefore: 0,
       playbackRate: 1,
       loop: true,
       volumes: [
-        [60, 1.0],
-        [89, 1.0],
+        [45, 1.0],
+        [104, 1.0],
       ],
     };
 
     const plan = await planAudio({
       assets: [loopSegmentAsset],
       fps: 30,
-      range: { from: 60, to: 90 }, // 1.0 second duration
+      range: { from: 45, to: 105 }, // 2.0 seconds duration across 2 loop cycles
       probe: probeAudioMedia,
       tempDir: testDir,
     });
@@ -352,9 +381,23 @@ describe('run-audio (ffmpeg integration)', () => {
     const out = await mixAudio(plan);
     const pcm = await readPcmMono(out);
 
-    expect(pcm.length).toBeCloseTo(48000, -3);
-    const activeRms = computeRms(pcm, 5000, 40000);
-    expect(activeRms).toBeGreaterThan(0.5);
+    expect(pcm.length).toBeCloseTo(96000, -3);
+
+    // Cycle 1:
+    // [0.0s - 0.5s]: silence (offset 0.5s to 1.0s of source)
+    const cycle1SilenceRms = computeRms(pcm, 0, 24000);
+    expect(cycle1SilenceRms).toBeLessThan(0.01);
+    // [0.5s - 1.0s]: tone (loop wrapped to 0.0s to 0.5s of source)
+    const cycle1ToneRms = computeRms(pcm, 25000, 47000);
+    expect(cycle1ToneRms).toBeGreaterThan(0.5);
+
+    // Cycle 2:
+    // [1.0s - 1.5s]: silence (loop repeated 0.5s to 1.0s of source)
+    const cycle2SilenceRms = computeRms(pcm, 48000, 72000);
+    expect(cycle2SilenceRms).toBeLessThan(0.01);
+    // [1.5s - 2.0s]: tone (loop repeated 0.0s to 0.5s of source)
+    const cycle2ToneRms = computeRms(pcm, 73000, 95000);
+    expect(cycle2ToneRms).toBeGreaterThan(0.5);
   });
 
   it('skips beginning with trimBefore on non-uniform media', async () => {

@@ -262,8 +262,9 @@ describe('audio-plan', () => {
       const filterIdx = pass.args.indexOf('-filter_complex');
       const filterStr = pass.args[filterIdx + 1]!;
 
-      // 5.0s % 2.0s = 1.0s (not 5.0s!)
-      expect(filterStr).toContain('atrim=start=1.000000');
+      // The complete loop cycle (0.0s to 2.0s) MUST be fed to aloop,
+      // and the modulo offset (1.0s) MUST be applied AFTER aloop so full cycles repeat correctly.
+      expect(filterStr).toContain('atrim=start=0.000000:end=2.000000,asetpts=PTS-STARTPTS,aloop=loop=-1:size=96000,atrim=start=1.000000,asetpts=PTS-STARTPTS');
     });
 
     it('caches probe results across multiple assets sharing the same src', async () => {

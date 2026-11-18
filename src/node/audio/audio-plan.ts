@@ -80,6 +80,7 @@ type PreparedAsset = {
   readonly outputDurationSec: number;
   readonly sourceStartSec: number;
   readonly loopSamples?: number;
+  readonly loopOffsetSec?: number;
   readonly isConstant: boolean;
   readonly constantVolume: number;
   readonly envelopeData?: Float32Array;
@@ -152,12 +153,17 @@ export async function planAudio({
       loopSamples = Math.round(loopDurationSec * assetSampleRate);
     }
 
-    const elapsedSrc = ((effectiveFrom - asset.startFrame) * asset.playbackRate) / fps;
-    const offsetInLoop = (asset.loop && loopDurationSec !== undefined && loopDurationSec > 0)
-      ? ((elapsedSrc % loopDurationSec) + loopDurationSec) % loopDurationSec
-      : elapsedSrc;
+    let sourceStartSec: number;
+    let loopOffsetSec = 0;
 
-    const sourceStartSec = (asset.trimBefore / fps) + offsetInLoop;
+    if (asset.loop && loopDurationSec !== undefined && loopDurationSec > 0) {
+      sourceStartSec = asset.trimBefore / fps;
+      const elapsedSrc = ((effectiveFrom - asset.startFrame) * asset.playbackRate) / fps;
+      loopOffsetSec = ((elapsedSrc % loopDurationSec) + loopDurationSec) % loopDurationSec;
+    } else {
+      const elapsedSrc = ((effectiveFrom - asset.startFrame) * asset.playbackRate) / fps;
+      sourceStartSec = (asset.trimBefore / fps) + elapsedSrc;
+    }
 
     const volCheck = isConstantVolume(asset.volumes);
     let envelopeData: Float32Array | undefined;
@@ -183,6 +189,7 @@ export async function planAudio({
       outputDurationSec,
       sourceStartSec: Math.max(0, sourceStartSec),
       loopSamples,
+      loopOffsetSec,
       isConstant: volCheck.constant,
       constantVolume: volCheck.value,
       envelopeData,
@@ -261,22 +268,36 @@ export async function planAudio({
       }
 
       const filters: string[] = [];
-      // 1. Source trim and pts reset
-      const trimParts = [`start=${item.sourceStartSec.toFixed(6)}`];
-      if (item.asset.trimAfter !== undefined) {
-        trimParts.push(`end=${(item.asset.trimAfter / fps).toFixed(6)}`);
-      }
-      filters.push(`atrim=${trimParts.join(':')}`, 'asetpts=PTS-STARTPTS');
-
-      // 2. Loop
       if (item.loopSamples !== undefined) {
+        // Loop mode:
+        // 1. Trim to the complete loop segment (from trimBefore to trimAfter)
+        const trimParts = [`start=${item.sourceStartSec.toFixed(6)}`];
+        if (item.asset.trimAfter !== undefined) {
+          trimParts.push(`end=${(item.asset.trimAfter / fps).toFixed(6)}`);
+        }
+        filters.push(`atrim=${trimParts.join(':')}`, 'asetpts=PTS-STARTPTS');
+
+        // 2. Loop the complete slice
         filters.push(`aloop=loop=-1:size=${item.loopSamples}`);
+
+        // 3. If offset within loop > 0, discard the initial slice of the looped stream
+        if (item.loopOffsetSec && item.loopOffsetSec > 1e-6) {
+          filters.push(`atrim=start=${item.loopOffsetSec.toFixed(6)}`, 'asetpts=PTS-STARTPTS');
+        }
+      } else {
+        // Non-loop mode:
+        // 1. Source trim and pts reset
+        const trimParts = [`start=${item.sourceStartSec.toFixed(6)}`];
+        if (item.asset.trimAfter !== undefined) {
+          trimParts.push(`end=${(item.asset.trimAfter / fps).toFixed(6)}`);
+        }
+        filters.push(`atrim=${trimParts.join(':')}`, 'asetpts=PTS-STARTPTS');
       }
 
-      // 3. Playback rate (atempo)
+      // Playback rate (atempo)
       filters.push(...buildAtempoFilters(item.asset.playbackRate));
 
-      // 4. Output duration trimming
+      // Output duration trimming
       filters.push(`atrim=duration=${item.outputDurationSec.toFixed(6)}`, 'asetpts=PTS-STARTPTS');
 
       // 5. Volume
