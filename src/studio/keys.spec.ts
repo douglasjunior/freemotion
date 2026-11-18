@@ -44,6 +44,11 @@ describe('keyAction', () => {
     expect(keyAction({ key: 'L' }, ctx)).toEqual({ type: 'toggle-loop' });
   });
 
+  it('maps m and M to toggle-mute', () => {
+    expect(keyAction({ key: 'm' }, ctx)).toEqual({ type: 'toggle-mute' });
+    expect(keyAction({ key: 'M' }, ctx)).toEqual({ type: 'toggle-mute' });
+  });
+
   it('ignores Ctrl and Meta modifier combinations', () => {
     expect(keyAction({ key: ' ', ctrlKey: true }, ctx)).toBeNull();
     expect(keyAction({ key: ' ', metaKey: true }, ctx)).toBeNull();

@@ -75,6 +75,21 @@ describe('freemotion studio', () => {
     expect(await stageBackground(page)).toBe('rgb(255, 0, 0)');
   });
 
+  it('toggles mute with button and m shortcut', async () => {
+    await page.goto(`${studio.url}?composition=Colors&frame=0`);
+    const muteButton = page.getByRole('button', { name: 'Mute (M)' });
+    await muteButton.waitFor();
+
+    // Click button to mute
+    await muteButton.click();
+    const unmuteButton = page.getByRole('button', { name: 'Unmute (M)' });
+    await unmuteButton.waitFor();
+
+    // Press 'm' to unmute
+    await page.keyboard.press('m');
+    await page.getByRole('button', { name: 'Mute (M)' }).waitFor();
+  });
+
   it('emits the ready signal to stdout on startup', () => {
     expect(studio.stdout).toMatch(/freemotion studio running at http:\/\/\S+/);
     expect(studio.stdout).toMatch(/Studio ready at http:\/\/\S+/);

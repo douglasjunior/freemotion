@@ -7,6 +7,7 @@ import { beginAudioFrame, clearAudioRegistry, collectAudio } from './audio-regis
 import { Audio } from './audio.js';
 import { resetEnvironment, setEnvironment } from './environment.js';
 import { FrameProvider, type VideoConfig } from './frame.js';
+import { PlaybackProvider } from './playback.js';
 import { Sequence } from './sequence.js';
 
 
@@ -221,5 +222,102 @@ describe('<Audio>', () => {
     const assets = collectAudio();
     expect(assets).toHaveLength(1);
     expect(assets[0]!.volumes).toEqual([[0, 0.85]]);
+  });
+
+  describe('preview playback', () => {
+    type MockAudioElement = HTMLAudioElement & {
+      play: () => Promise<void>;
+      pause: () => void;
+      load: () => void;
+    };
+
+    it('creates an audio element and syncs volume, playback rate, and mute in preview mode', () => {
+      setEnvironment({ isRendering: false, isPlayer: true });
+
+      const audioElements: MockAudioElement[] = [];
+      const origCreateElement = document.createElement.bind(document);
+      document.createElement = (tag: string) => {
+        const el = origCreateElement(tag) as unknown as MockAudioElement;
+        if (tag === 'audio') {
+          el.play = () => Promise.resolve();
+          el.pause = () => undefined;
+          el.load = () => undefined;
+          audioElements.push(el);
+        }
+        return el;
+      };
+
+      try {
+        const root = harness.render(
+          <PlaybackProvider playing={true} muted={false}>
+            <FrameProvider config={config} frame={10}>
+              <Audio src="preview.mp3" volume={frame => (frame === 10 ? 0.6 : 1)} loop playbackRate={1.5} />
+            </FrameProvider>
+          </PlaybackProvider>,
+        );
+
+        expect(audioElements).toHaveLength(1);
+        const audio = audioElements[0]!;
+        expect(audio.src).toBe('preview.mp3');
+        expect(audio.loop).toBe(true);
+        expect(audio.playbackRate).toBe(1.5);
+        expect(audio.volume).toBe(0.6);
+        expect(audio.muted).toBe(false);
+
+        // Update frame to test per-frame volume and muted state from PlaybackProvider
+        harness.render(
+          <PlaybackProvider playing={true} muted={true}>
+            <FrameProvider config={config} frame={20}>
+              <Audio src="preview.mp3" volume={frame => (frame === 20 ? 0.3 : 1)} loop playbackRate={1.5} />
+            </FrameProvider>
+          </PlaybackProvider>,
+          root,
+        );
+
+        expect(audio.volume).toBe(0.3);
+        expect(audio.muted).toBe(true);
+      } finally {
+        document.createElement = origCreateElement;
+      }
+    });
+
+    it('pauses and clears src upon unmounting in preview mode', () => {
+      setEnvironment({ isRendering: false, isPlayer: true });
+
+      let paused = false;
+      let loaded = false;
+      const origCreateElement = document.createElement.bind(document);
+      document.createElement = (tag: string) => {
+        const el = origCreateElement(tag) as unknown as MockAudioElement;
+        if (tag === 'audio') {
+          el.play = () => Promise.resolve();
+          el.pause = () => {
+            paused = true;
+          };
+          el.load = () => {
+            loaded = true;
+          };
+        }
+        return el;
+      };
+
+      try {
+        const root = harness.render(
+          <PlaybackProvider playing={true} muted={false}>
+            <FrameProvider config={config} frame={0}>
+              <Audio src="preview.mp3" />
+            </FrameProvider>
+          </PlaybackProvider>,
+        );
+
+        // Unmount by rendering empty div
+        harness.render(<div />, root);
+
+        expect(paused).toBe(true);
+        expect(loaded).toBe(true);
+      } finally {
+        document.createElement = origCreateElement;
+      }
+    });
   });
 });

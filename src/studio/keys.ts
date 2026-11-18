@@ -1,7 +1,8 @@
 export type KeyAction =
   | { readonly type: 'toggle-play' }
   | { readonly type: 'seek'; readonly frame: number }
-  | { readonly type: 'toggle-loop' };
+  | { readonly type: 'toggle-loop' }
+  | { readonly type: 'toggle-mute' };
 
 export type KeyContext = {
   readonly fps: number;
@@ -51,6 +52,9 @@ export function keyAction(event: KeyboardEventLike, { fps, frame, last }: KeyCon
     case 'l':
     case 'L':
       return { type: 'toggle-loop' };
+    case 'm':
+    case 'M':
+      return { type: 'toggle-mute' };
     default:
       return null;
   }
