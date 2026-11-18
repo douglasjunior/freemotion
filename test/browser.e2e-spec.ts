@@ -13,7 +13,10 @@ describe('freemotion browser and flags', () => {
   it('browser ensure prints the ready path and exits with 0', async () => {
     const { code, stdout } = await run(['browser', 'ensure'], FIXTURE);
     expect(code).toBe(0);
-    expect(stdout).toMatch(/freemotion: browser ready at .+/);
+    const match = stdout.match(/freemotion: browser ready at (.+)/);
+    expect(match).not.toBeNull();
+    const binaryPath = match![1]!.trim();
+    expect(existsSync(binaryPath)).toBe(true);
   });
 
   it('fails fast when browser ensure is given a nonexistent executable', async () => {
@@ -29,7 +32,7 @@ describe('freemotion browser and flags', () => {
       { PLAYWRIGHT_BROWSERS_PATH: '/tmp/nonexistent-playwright-browsers' },
     );
     expect(code).toBe(1);
-    expect(stderr).toContain('O navegador não está instalado. Rode freemotion browser ensure ou passe --browser-executable.');
+    expect(stderr).toContain('Browser is not installed. Run freemotion browser ensure or pass --browser-executable.');
   });
 
   it('fails fast with --no-download when custom browser-executable is nonexistent', async () => {

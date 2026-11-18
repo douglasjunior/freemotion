@@ -25,7 +25,7 @@ describe('launchBrowser', () => {
     const installer = vi.fn();
     await expect(
       launchBrowser({ download: false, log: vi.fn(), launcher, installer }),
-    ).rejects.toThrow('O navegador não está instalado. Rode freemotion browser ensure ou passe --browser-executable.');
+    ).rejects.toThrow('Browser is not installed. Run freemotion browser ensure or pass --browser-executable.');
     expect(installer).not.toHaveBeenCalled();
   });
 

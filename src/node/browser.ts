@@ -17,6 +17,27 @@ export function installHeadlessShell(): Promise<void> {
   });
 }
 
+export function headlessShellExecutable(): string {
+  try {
+    const req = createRequire(import.meta.url);
+    const pkgDir = dirname(req.resolve('playwright-core/package.json'));
+    const core = req(join(pkgDir, 'lib', 'coreBundle.js')) as {
+      registry?: {
+        registry?: {
+          findExecutable: (name: string) => { executablePath: () => string | undefined } | undefined;
+        };
+      };
+    };
+    const execPath = core.registry?.registry?.findExecutable(BROWSER)?.executablePath();
+    if (execPath) {
+      return execPath;
+    }
+  } catch {
+    // fallback below
+  }
+  return chromium.executablePath();
+}
+
 export type BrowserLauncher = (options?: LaunchOptions) => Promise<Browser>;
 export type BrowserInstaller = () => Promise<void>;
 
@@ -50,7 +71,7 @@ export async function launchBrowser({
       throw error;
     }
     if (!download) {
-      throw new Error('O navegador não está instalado. Rode freemotion browser ensure ou passe --browser-executable.');
+      throw new Error('Browser is not installed. Run freemotion browser ensure or pass --browser-executable.');
     }
     log(`Downloading ${BROWSER} for rendering (first run only)…`);
     await installer();
@@ -88,7 +109,7 @@ export async function ensureBrowser({
   } finally {
     await browser?.close();
   }
-  const resolvedPath = executablePath ?? chromium.executablePath();
+  const resolvedPath = executablePath ?? headlessShellExecutable();
   console.log(`freemotion: browser ready at ${resolvedPath}`);
   return resolvedPath;
 }

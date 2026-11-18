@@ -115,7 +115,7 @@ describe('freemotion render', () => {
         { PLAYWRIGHT_BROWSERS_PATH: '/tmp/nonexistent-playwright-browsers' },
       );
       expect(code).toBe(1);
-      expect(stderr).toContain('O navegador não está instalado. Rode freemotion browser ensure ou passe --browser-executable.');
+      expect(stderr).toContain('Browser is not installed. Run freemotion browser ensure or pass --browser-executable.');
     });
   });
 });
