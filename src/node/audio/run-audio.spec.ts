@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,16 @@ import type { AudioAsset } from '../../shared/render-api.js';
 import { planAudio } from './audio-plan.js';
 import { probeAudioMedia } from './probe.js';
 import { mixAudio } from './run-audio.js';
+
+
+const hasFfmpeg = (() => {
+  try {
+    const res = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+})();
 
 
 function generateSine(path: string, durationSec = 2, freq = 1000): Promise<void> {
@@ -106,7 +116,7 @@ function computeRms(samples: Float32Array, start = 0, end = samples.length): num
   return Math.sqrt(sum / count);
 }
 
-describe('run-audio (ffmpeg integration)', () => {
+describe.runIf(hasFfmpeg)('run-audio (ffmpeg integration)', () => {
   let testDir: string;
   let sine1s: string;
   let sine3s: string;
