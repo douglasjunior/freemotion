@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { defineComposition } from './composition.js';
 import { useCurrentFrame } from './frame.js';
+import { usePlayback } from './playback.js';
 import { Player } from './player.js';
 import { staticFile } from './static-file.js';
 
@@ -34,6 +35,29 @@ describe('Player', () => {
 
   it('stays hidden until it has measured its container', () => {
     expect(renderToStaticMarkup(<Player composition={composition} />)).toContain('visibility:hidden');
+  });
+
+  it('propagates playing and muted to playback context', () => {
+    const PlaybackProbe = () => {
+      const { playing, muted } = usePlayback();
+      return <span data-playing={String(playing)} data-muted={String(muted)} />;
+    };
+    const comp = defineComposition({
+      id: 'PlaybackComp',
+      component: PlaybackProbe,
+      fps: 30,
+      width: 100,
+      height: 100,
+      durationInFrames: 30,
+    });
+
+    const htmlPlaying = renderToStaticMarkup(<Player composition={comp} frame={0} playing muted />);
+    expect(htmlPlaying).toContain('data-playing="true"');
+    expect(htmlPlaying).toContain('data-muted="true"');
+
+    const htmlPaused = renderToStaticMarkup(<Player composition={comp} frame={0} playing={false} />);
+    expect(htmlPaused).toContain('data-playing="false"');
+    expect(htmlPaused).toContain('data-muted="false"');
   });
 });
 

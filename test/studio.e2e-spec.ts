@@ -46,7 +46,7 @@ describe('freemotion studio', () => {
     await page.goto(studio.url);
     const select = page.getByLabel('Composition');
     await select.waitFor();
-    expect(await select.locator('option').allTextContents()).toEqual(['Colors', 'Props', 'Held', 'Asset']);
+    expect(await select.locator('option').allTextContents()).toEqual(['Colors', 'Props', 'Held', 'ShotMix', 'Asset']);
     expect(await select.locator('optgroup').getAttribute('label')).toBe('Assets');
   });
 

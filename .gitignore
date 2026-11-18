@@ -60,3 +60,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Renders and test scratch output
 /out
 /test/.tmp
+/test/fixtures/basic/out
+/test/fixtures/basic/public/clips
+/test/fixtures/basic/public/skill

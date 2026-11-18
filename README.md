@@ -162,8 +162,9 @@ npx freemotion render --all                      # every composition, to out/
 
 | Format | Encoder | Notes |
 |---|---|---|
-| `.mp4` | H.264, yuv420p, CRF 18 | Tagged BT.709, `+faststart` for the web. Width and height must be even. |
-| `.webm` | VP9, CRF 32 | Needs an ffmpeg built with `libvpx`. |
+| `.mp4` | H.264 / H.265, yuv420p, CRF 18/20 | Tagged BT.709, `+faststart` for the web. Width and height must be even. |
+| `.webm` | VP9, CRF 32 | Supports alpha with `yuva420p`. Needs an ffmpeg built with `libvpx`. |
+| `.mov` | ProRes / H.264 | ProRes HQ by default, supports alpha with ProRes 4444 (`yuva444p10le`). |
 | `.gif` | Palette per video | For lighter files, shrink it with `--scale 0.5` and drop frames with `--every-nth-frame 2`. |
 | `.png` | Lossless | A single frame (`--frame`). ffmpeg is not needed. |
 | `.svg` | CSS keyframes | A vector file that plays by itself, in browsers and GitHub READMEs. ffmpeg is not needed. See [Animated SVG](#animated-svg). |
@@ -172,28 +173,63 @@ npx freemotion render --all                      # every composition, to out/
 <summary><b>All render options</b></summary>
 
 ```text
--o, --output <file>         Output file, for a single composition (.mp4, .webm, .gif, .png or .svg)
+-o, --output <file>         Output file, for a single composition (.mp4, .webm, .mov, .gif, .png or .svg)
 --out-dir <dir>             Folder for <id>.<format> files (default: out)
 --all                       Render every composition
---format <format>           mp4, webm, gif, png or svg (default: from --output, else mp4; png with --frame)
+--format <format>           mp4, webm, mov, gif, png or svg (default: from --output, else mp4; png with --frame)
 --frame <n>                 Render a still image of frame n
 --frames <a-b>              Render only frames a to b (inclusive)
 --every-nth-frame <n>       Keep one frame out of every n, at 1/n of the frame rate (lighter GIFs and SVGs)
 --no-loop                   GIF and SVG: stop on the last frame instead of starting over
 --props <json|file>         Props merged over defaultProps, as JSON or a path to a .json file
 --scale <n>                 Pixel density: 2 renders at twice the width and height (default: 1)
---crf <n>                   Quality for mp4/webm, lower is better (default: 18 mp4, 32 webm)
+--image-format <format>     Frame capture format: png or jpeg (default: png)
+--jpeg-quality <n>          JPEG quality between 1 and 100 (default: 92)
+--codec <codec>             Video codec: h264, h265, vp9 or prores (default: by format)
+--pixel-format <format>     Pixel format (default: yuv420p)
+--prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
+--crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+--audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
+--muted                     Mute all audio in the rendered video
+--silent-audio              Add a silent audio track when no audio is present (or when --muted)
+--overwrite                 Overwrite existing output files (default: true, use --no-overwrite to prevent)
 --concurrency <n>           Browser tabs rendering in parallel (default: CPU cores - 2, up to 8)
+--recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
+--timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
+--video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
+--gl <backend>              WebGL backend: angle, swangle, egl, swiftshader, vulkan
+--no-download               Fail if the browser is not installed instead of downloading it
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
 --no-build-cache            Rebuild compositions instead of using the cached bundle
 --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
 --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
+--progress <mode>           Report machine-readable progress on stdout (json)
 --quiet                     Only print errors
 ```
 
 </details>
+
+### Machine-readable progress (`--progress json`)
+
+When running inside automated tools or dashboards, pass `--progress json` to emit one JSON object per line on `stdout`. Human informational logs and warnings are routed to `stderr`, keeping `stdout` strictly machine-parseable JSON lines (JSONL).
+
+```bash
+npx freemotion render Intro --progress json
+```
+
+Events emitted on `stdout`:
+
+| Event | Meaning |
+|---|---|
+| `{"phase":"bundle","status":"start"|"done"}` | Vite bundle build start and completion |
+| `{"phase":"render","id":"Intro","done":12,"total":60}` | Browser frames captured (~4/s and final) |
+| `{"phase":"encode","id":"Intro","done":10,"total":60}` | Frames delivered to ffmpeg (~4/s and final) |
+| `{"phase":"audio","id":"Intro"}` | Audio track processing |
+| `{"phase":"mux","id":"Intro"}` | Audio and video multiplexing |
+| `{"phase":"done","id":"Intro","output":"out/Intro.mp4","frames":60,"seconds":2.1}` | Composition finished rendering |
+| `{"phase":"error","message":"..."}` | Render failed |
 
 ### Animated SVG
 
@@ -213,6 +249,28 @@ What to know:
 - **Size grows with change.** A value that moves every frame costs one keyframe per frame. Elements whose attributes CSS can't animate (a `<path d>` that morphs, an `<img src>` that swaps) are written once per distinct value. `--every-nth-frame 2` halves all of it. Fonts are embedded only for the faces and the characters the video uses, but a font family can still weigh a few hundred KB.
 - **Not everything survives.** `<canvas>` is captured as one image per frame (heavy), `<video>` and WebGL don't play, shadow DOM is not recorded, and stylesheet rules must target elements inside the composition (`body` and `html` don't exist in the file). Where the composition paints nothing, the SVG is transparent, where a video would be white.
 - **Timing is frame-exact.** Each keyframe holds for one frame of the original frame rate, like the video. The `--scale`, `--crf` and `--concurrency` options don't apply.
+
+### Browser and WebGL (`--gl`, `browser ensure`, `--no-download`)
+
+To control browser downloads in CI or headless environments and support WebGL (such as Three.js / React Three Fiber):
+
+- **`freemotion browser ensure`**: downloads or verifies the bundled Chromium headless shell ahead of time and exits with 0.
+  ```bash
+  npx freemotion browser ensure
+  ```
+- **`--no-download`**: disables automatic on-demand downloads during `freemotion render`. If the browser is missing, it fails fast with an explicit error:
+  ```bash
+  npx freemotion render MyVideo --no-download
+  ```
+- **`--gl <backend>`**: selects the WebGL rendering backend for Chromium. On headless Linux machines without physical GPUs, `swangle` uses SwiftShader software rasterization under ANGLE.
+
+| Backend | Chromium flags | Renderer (`WEBGL_debug_renderer_info`) | Notes |
+|---|---|---|---|
+| `angle` | `--use-gl=angle --use-angle=gl` | ANGLE / SwiftShader or GPU driver | Default ANGLE on systems with OpenGL. Breaks headless 2D capture on GPU-less Linux. |
+| `swangle` | `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` | ANGLE (Google, SwiftShader) | Software rasterizer via SwiftShader under ANGLE. Recommended for headless CI and environments without GPU. |
+| `egl` | `--use-gl=egl` | ANGLE / EGL driver | Native EGL backend. |
+| `swiftshader` | `--use-gl=swiftshader --enable-unsafe-swiftshader` | SwiftShader | Direct SwiftShader software GL. |
+| `vulkan` | `--use-angle=vulkan --use-vulkan=native --disable-vulkan-fallback-to-gl-for-testing` | Native Vulkan driver | Hardware Vulkan backend without GL fallback. Requires native GPU Vulkan support. |
 
 ### Tips for identical renders everywhere
 
@@ -243,6 +301,8 @@ import { intro } from './compositions';
 | `composition` | `Composition` | | What to play, from `defineComposition()`. |
 | `inputProps` | `Partial<Props>` | | Merged over the composition's `defaultProps`. |
 | `frame` | `number` | | Controlled mode: the frame to draw. Rounded and clamped. |
+| `playing` | `boolean` | | Controlled mode: whether the player is actively playing. |
+| `muted` | `boolean` | `false` | Whether preview audio is muted. |
 | `autoPlay` | `boolean` | `false` | Uncontrolled mode: start playing on mount. |
 | `loop` | `boolean` | `true` | Uncontrolled mode: start over at the end. |
 | `playbackRate` | `number` | `1` | Uncontrolled mode: speed multiplier. |
@@ -293,15 +353,21 @@ Everything is exported from `freemotion`.
 | Export | What it does |
 |---|---|
 | `defineComposition(definition)` | Declares a composition: `id`, `component`, `defaultProps`, `fps`, `width`, `height`, `durationInFrames` and an optional `folder`. |
+| `getEnvironment()` | Execution environment: `{ isStudio, isRendering, isPlayer }`. |
 | `useCurrentFrame()` | The frame being drawn. Relative to the start of the enclosing `<Sequence>`. |
+| `usePlayback()` | Playback state: `{ playing, muted }`. |
+| `usePremounting()` | Whether the component is mounted early before its window to preload assets. |
 | `useVideoConfig()` | `{ fps, width, height, durationInFrames }` of the composition. |
 | `interpolate(input, inputRange, outputRange, options?)` | Maps a value between ranges, segment by segment, with `easing` and `extrapolateLeft`/`extrapolateRight` (`'extend'`, `'clamp'`, `'identity'` or `'wrap'`). |
 | `spring({ frame, fps, config?, from?, to?, delay? })` | A physical spring from `from` to `to`. `config`: `damping` (10), `mass` (1), `stiffness` (100), `overshootClamping` (false). |
 | `Easing` | `linear`, `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(b)`, `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)` and the modifiers `in`, `out`, `inOut`. |
 | `<AbsoluteFill>` | A full-size, absolutely positioned flex column. The basic layer. |
-| `<Sequence from durationInFrames layout>` | Shifts time for its children and mounts them only during its window. |
+| `<Sequence from durationInFrames premountFor? layout>` | Shifts time for its children, optionally preloading before `from` with `premountFor`. |
 | `<Series>` / `<Series.Sequence durationInFrames offset>` | Plays sequences one after the other. A negative `offset` overlaps them. |
+| `<Freeze frame active?>` | Freezes time for its children at `frame`. Inside it, `<Video>` displays the frozen frame and `<Audio>` stays silent. |
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
+| `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
+| `<Video src trimBefore? playbackRate? transparent? volume?>` | Renders a video. In render mode, extracts exact frames from the video frame server. In preview mode, synchronizes an HTML `<video>` element. |
 | `loadFont({ family, url, weight?, style?, display? })` | Loads a font via `FontFace`, holds the render until ready, and adds it to `document.fonts`. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
@@ -310,6 +376,65 @@ Everything is exported from `freemotion`.
 | `<ScrollPlayer>` / `useScrollFrame(target, durationInFrames, options?)` | Drive a composition with the page scroll or any scrolling element. [See above](#scroll-driven-video). |
 | `scrollProgress(start, size, viewport, range?)` | The scroll math behind them, as a pure function, for custom integrations. |
 | `<Stage config frame>` | Draws one frame at native size. The building block of the player, the studio and the renderer. |
+
+### Video: `<Video>`
+
+`<Video>` embeds video clips into compositions:
+
+```tsx
+import { Video, staticFile } from 'freemotion';
+
+export const Clip = () => (
+  <Video
+    src={staticFile('clip.mp4')}
+    trimBefore={30}
+    playbackRate={1}
+    volume={frame => (frame < 15 ? frame / 15 : 1)}
+  />
+);
+```
+
+- **Dual-mode synchronization**: In preview (Studio and `<Player>`), renders a synchronized HTML `<video>` element with seamless scrub and playback. In render mode (`freemotion render`), requests exact decoded frames from the built-in HTTP frame server, guaranteeing frame-accurate renders without dropped frames.
+- **Volume control**: Accepts a constant number between `0` and `1`, or a dynamic function `(frame: number) => number` for fades, dips, and custom curves.
+- **Transparency**: With `transparent`, the render pipeline extracts RGBA frames (e.g. from ProRes 4444 or VP9 alpha videos). In preview mode, alpha playback depends on browser support: Chromium supports WebM VP9 with alpha; QuickTime ProRes 4444 with alpha is rendered with an opaque background in browsers that do not natively decode ProRes alpha channels.
+
+### Audio: `<Audio>`
+
+`<Audio>` embeds audio tracks into compositions:
+
+```tsx
+import { Audio, staticFile } from 'freemotion';
+
+export const Soundtrack = () => (
+  <Audio
+    src={staticFile('music.mp3')}
+    volume={frame => (frame < 30 ? frame / 30 : 1)}
+    loop
+  />
+);
+```
+
+- **Render pipeline**: In render mode, `<Audio>` registers audio assets and records their volume envelope across frames. The Node CLI collects and mixes all audio tracks via FFmpeg.
+- **Volume control**: Can be a fixed number or a dynamic function `(frame: number) => number` evaluated against the component's local frame.
+- **Nested sequences**: Automatically tracks offsets across nested `<Sequence>` components.
+
+### Freezing time: `<Freeze>`
+
+`<Freeze>` locks time for its children at a specific frame:
+
+```tsx
+import { Freeze, Video, staticFile } from 'freemotion';
+
+export const StillShot = () => (
+  <Freeze frame={45}>
+    <Video src={staticFile('clip.mp4')} />
+  </Freeze>
+);
+```
+
+- **Frozen state**: Children observe `useCurrentFrame() === frame` regardless of the parent frame.
+- **Video & Audio**: `<Video>` locks on the specified frame and remains paused in preview; `<Audio>` tracks remain silent and do not register audio during render.
+- **Toggle with `active`**: Set `active={false}` (default `true`) to pass the dynamic parent frame through untouched.
 
 ### Async data: `delayRender()`
 
@@ -328,7 +453,7 @@ useEffect(() => {
 }, [handle]);
 ```
 
-The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })`).
+The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })` or globally via the `--timeout <ms>` CLI flag).
 
 ### Custom fonts: `loadFont()`
 
@@ -355,14 +480,14 @@ freemotion keeps the names you already know, so most components move over by cha
 + import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'freemotion';
 ```
 
-Same names: `useCurrentFrame`, `useVideoConfig`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Img`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
+Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`, `spring`, `Easing`, `AbsoluteFill`, `Sequence`, `Series`, `Freeze`, `Img`, `Video`, `staticFile`, `delayRender`, `continueRender`, `cancelRender` and `random`.
 
 What's different:
 
 - **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
 - **Fonts.** Built-in `loadFont()` replaces `@remotion/fonts`: it registers a `FontFace`, holds the render until loaded, and deduplicates across hot reloads.
 - **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
-- **Not there yet:** audio, `<Video>`/`<OffthreadVideo>`, transparent video, `calculateMetadata()` and cloud rendering.
+- **Not there yet:** `calculateMetadata()` and cloud rendering.
 
 freemotion is an independent project written from scratch, and it is not affiliated with Remotion.
 
@@ -372,9 +497,9 @@ freemotion is an independent project written from scratch, and it is not affilia
 
 ## 🗺️ Roadmap
 
-- [ ] Audio tracks and `<Audio>`
+- [x] Audio tracks and `<Audio>`
+- [x] Transparent output (ProRes 4444, VP9 with alpha)
 - [ ] `<Video>` with frame-accurate seeking
-- [ ] Transparent output (ProRes 4444, VP9 with alpha)
 - [ ] A render button and a props editor in the studio
 - [ ] More `freemotion init` templates
 

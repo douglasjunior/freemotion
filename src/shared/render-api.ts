@@ -20,16 +20,36 @@ export type SvgExportResult = {
   readonly warnings: readonly string[];
 };
 
+export type MountOptions = {
+  readonly videoServerUrl?: string;
+  readonly timeoutInMilliseconds?: number;
+};
+
+export type AudioVolumeEntry = readonly [frame: number, volume: number];
+
+export type AudioAsset = {
+  readonly id: string;
+  readonly src: string;
+  readonly startFrame: number;
+  readonly trimBefore: number;
+  readonly trimAfter?: number;
+  readonly playbackRate: number;
+  readonly loop: boolean;
+  readonly volumes: readonly AudioVolumeEntry[];
+};
+
 export type RenderPageApi = {
   readonly compositions: readonly CompositionMeta[];
   /** Selects the composition (props merged over its defaults) for the next `setFrame()` calls. */
-  readonly mount: (id: string, props: Record<string, unknown> | null) => CompositionMeta;
+  readonly mount: (id: string, props: Record<string, unknown> | null, options?: MountOptions) => CompositionMeta;
   /** Draws the frame and resolves once fonts, images, render holds and the paint are done. */
   readonly setFrame: (frame: number) => Promise<void>;
   /** Animated SVG: `beginSvg()` once, `recordSvgFrame()` after each `setFrame()`, then `finishSvg()` builds the file. */
   readonly beginSvg: () => void;
   readonly recordSvgFrame: () => void;
   readonly finishSvg: (options: SvgExportOptions) => Promise<SvgExportResult>;
+  /** Collects all audio assets registered by <Audio> and <Video> across rendered frames, and clears the tab's registry. */
+  readonly collectAudio: () => AudioAsset[];
 };
 
 export const RENDER_API_GLOBAL = '__freemotion';

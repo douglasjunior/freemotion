@@ -3,13 +3,18 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import compositions from 'virtual:freemotion/entry';
 
+import { beginAudioFrame, collectAudio } from '../runtime/audio-registry.js';
 import { validateCompositions, type AnyComposition } from '../runtime/composition.js';
-import { waitForRenderHolds } from '../runtime/delay-render.js';
+import { setDefaultRenderTimeout, waitForRenderHolds } from '../runtime/delay-render.js';
+import { setEnvironment } from '../runtime/environment.js';
+import { setRenderContext } from '../runtime/render-context.js';
 import { Stage } from '../runtime/stage.js';
-import { RENDER_API_GLOBAL, type CompositionMeta, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
+import { RENDER_API_GLOBAL, type CompositionMeta, type MountOptions, type SvgExportOptions, type SvgExportResult } from '../shared/render-api.js';
 
 import { SvgRecorder } from './svg-recorder.js';
 
+
+setEnvironment({ isRendering: true, isPlayer: false });
 
 const list = validateCompositions(compositions);
 // React 19 reports render errors instead of throwing them out of flushSync(); keep the last one so
@@ -25,10 +30,14 @@ let mounted: { composition: AnyComposition; props: Record<string, unknown> } | n
 const meta = ({ id, fps, width, height, durationInFrames }: AnyComposition): CompositionMeta => ({ id, fps, width, height, durationInFrames });
 const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-function mount(id: string, props: Record<string, unknown> | null): CompositionMeta {
+function mount(id: string, props: Record<string, unknown> | null, options?: MountOptions): CompositionMeta {
   const composition = list.find(item => item.id === id);
   if (!composition) {
     throw new Error(`Unknown composition "${id}". Available: ${list.map(item => item.id).join(', ') || '(none)'}.`);
+  }
+  setRenderContext({ videoServerUrl: options?.videoServerUrl });
+  if (options?.timeoutInMilliseconds !== undefined) {
+    setDefaultRenderTimeout(options.timeoutInMilliseconds);
   }
   mounted = { composition, props: { ...composition.defaultProps, ...props } };
   return meta(composition);
@@ -47,6 +56,7 @@ async function setFrame(frame: number): Promise<void> {
   const { composition, props } = mounted;
   const Component = composition.component;
   renderError = null;
+  beginAudioFrame();
   flushSync(() => {
     root.render(
       <Stage config={composition} frame={frame}>
@@ -94,7 +104,15 @@ function finishSvg(options: SvgExportOptions): Promise<SvgExportResult> {
 async function boot() {
   // With unicode-range, a face is only fetched on first use. Load all of them up front.
   await Promise.all([...document.fonts].map(face => face.load().catch(() => undefined)));
-  window[RENDER_API_GLOBAL] = { compositions: list.map(meta), mount, setFrame, beginSvg, recordSvgFrame, finishSvg };
+  window[RENDER_API_GLOBAL] = {
+    compositions: list.map(meta),
+    mount,
+    setFrame,
+    beginSvg,
+    recordSvgFrame,
+    finishSvg,
+    collectAudio,
+  };
 }
 
 void boot();

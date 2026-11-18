@@ -241,7 +241,7 @@ export const Studio = ({ compositions }: { readonly compositions: readonly AnyCo
         {current && fit > 0 && (
           <div style={{ width: fit, boxShadow: '0 24px 70px rgba(0, 0, 0, 0.55)', borderRadius: 4, overflow: 'hidden' }}>
             <ErrorBoundary key={current.id}>
-              <Player composition={current} frame={frame} />
+              <Player composition={current} frame={frame} playing={playing} />
             </ErrorBoundary>
           </div>
         )}

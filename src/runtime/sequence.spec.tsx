@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { useCurrentFrame, useVideoConfig } from './frame.js';
+import { resetEnvironment, setEnvironment } from './environment.js';
+import { useCurrentFrame, useFrameState, useVideoConfig } from './frame.js';
 import { Sequence, Series } from './sequence.js';
 import { Stage } from './stage.js';
 
@@ -56,6 +57,58 @@ describe('Sequence', () => {
   it('rejects invalid timing', () => {
     expect(() => draw(0, <Sequence from={Number.NaN} />)).toThrow(/"from"/);
     expect(() => draw(0, <Sequence durationInFrames={0} />)).toThrow(/positive/);
+  });
+
+  describe('premountFor', () => {
+    const PremountProbe = () => {
+      const frame = useCurrentFrame();
+      const { frozen, premounting } = useFrameState();
+      return <span data-frame={frame} data-frozen={String(frozen)} data-premounting={String(premounting)} />;
+    };
+
+    afterEach(() => {
+      resetEnvironment();
+    });
+
+    it('premounts hidden with frame 0 frozen when local frame is within -premountFor', () => {
+      // from 20, premountFor 10:
+      // frame 15 gives local frame -5
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(15, tree);
+      expect(html).toContain('visibility:hidden');
+      expect(html).toContain('data-frame="0"');
+      expect(html).toContain('data-frozen="true"');
+      expect(html).toContain('data-premounting="true"');
+    });
+
+    it('does not mount when local frame is before -premountFor', () => {
+      // frame 9 gives local frame -11 (before -premountFor 10)
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(9, tree);
+      expect(html).not.toContain('data-frame');
+    });
+
+    it('does not premount during render mode', () => {
+      setEnvironment({ isRendering: true, isPlayer: false });
+      const tree = (
+        <Sequence from={20} durationInFrames={30} premountFor={10}>
+          <PremountProbe />
+        </Sequence>
+      );
+
+      const html = draw(15, tree);
+      expect(html).not.toContain('data-frame');
+    });
   });
 });
 

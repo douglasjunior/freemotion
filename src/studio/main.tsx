@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client';
 import compositions from 'virtual:freemotion/entry';
 
 import { validateCompositions } from '../runtime/composition.js';
+import { setEnvironment } from '../runtime/environment.js';
 
 import { ErrorPanel, Studio } from './studio.js';
 
+
+setEnvironment({ isStudio: true, isPlayer: false });
 
 const root = createRoot(document.getElementById('root')!);
 

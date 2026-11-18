@@ -1,7 +1,8 @@
 // Render holds: a composition that needs something asynchronous before a frame is complete (data,
 // a font, an image) takes a hold, and the renderer waits until every hold is released.
 
-const DEFAULT_TIMEOUT = 30_000;
+const INITIAL_DEFAULT_TIMEOUT = 30_000;
+let defaultTimeout = INITIAL_DEFAULT_TIMEOUT;
 
 type Hold = { readonly label: string; readonly timer: ReturnType<typeof setTimeout> };
 type Waiter = { readonly resolve: () => void; readonly reject: (error: Error) => void };
@@ -16,13 +17,19 @@ export type DelayRenderOptions = {
   readonly timeoutInMilliseconds?: number;
 };
 
+/** Sets the default timeout for delayRender holds when not specified per call. */
+export function setDefaultRenderTimeout(ms: number): void {
+  defaultTimeout = ms;
+}
+
 /** Takes a hold: the renderer won't capture the frame until `continueRender(handle)` is called. */
-export function delayRender(label?: string, { timeoutInMilliseconds = DEFAULT_TIMEOUT }: DelayRenderOptions = {}): number {
+export function delayRender(label?: string, { timeoutInMilliseconds }: DelayRenderOptions = {}): number {
   const handle = nextHandle++;
   const name = label ?? `delayRender #${handle}`;
+  const timeout = timeoutInMilliseconds ?? defaultTimeout;
   const timer = setTimeout(() => {
-    cancelRender(new Error(`freemotion: "${name}" was not released with continueRender() within ${timeoutInMilliseconds} ms.`));
-  }, timeoutInMilliseconds);
+    cancelRender(new Error(`freemotion: "${name}" was not released with continueRender() within ${timeout} ms.`));
+  }, timeout);
   holds.set(handle, { label: name, timer });
   return handle;
 }
@@ -70,4 +77,5 @@ export function resetRenderHolds(): void {
   holds.clear();
   waiters.clear();
   failure = null;
+  defaultTimeout = INITIAL_DEFAULT_TIMEOUT;
 }

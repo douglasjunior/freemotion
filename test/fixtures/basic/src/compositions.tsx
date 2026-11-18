@@ -2,6 +2,8 @@
 import { AbsoluteFill, continueRender, defineComposition, delayRender, Img, Series, staticFile } from 'freemotion';
 import { useEffect, useState } from 'react';
 
+import shotMixComposition from './shot-mix';
+
 
 const size = { fps: 30, width: 64, height: 64 };
 
@@ -43,4 +45,5 @@ export default [
   defineComposition({ ...size, id: 'Props', component: Fill, defaultProps: { color: '#ff0000' }, durationInFrames: 1 }),
   defineComposition({ ...size, id: 'Held', component: Held, durationInFrames: 2 }),
   defineComposition({ ...size, id: 'Asset', component: Asset, durationInFrames: 1, folder: 'Assets' }),
+  shotMixComposition,
 ];
