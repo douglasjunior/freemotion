@@ -1,7 +1,8 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { extname, isAbsolute, relative, resolve } from 'node:path';
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream';
 import type { Plugin } from 'vite';
 
 
@@ -46,7 +47,7 @@ function parseRange(rangeHeader: string, size: number): { start: number; end: nu
 
   if (startStr && endStr) {
     start = Number(startStr);
-    end = Number(endStr);
+    end = Math.min(Number(endStr), size - 1);
   } else if (startStr) {
     start = Number(startStr);
     end = size - 1;
@@ -61,7 +62,7 @@ function parseRange(rangeHeader: string, size: number): { start: number; end: nu
     return null;
   }
 
-  if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end >= size || start > end) {
+  if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || start >= size || start > end) {
     return null;
   }
 
@@ -98,7 +99,7 @@ export function createPublicDirMiddleware(publicDir: string) {
     // Protect against path traversal
     const targetPath = resolve(normalizedPublicDir, '.' + pathname);
     const rel = relative(normalizedPublicDir, targetPath);
-    if (rel.startsWith('..') || isAbsolute(rel)) {
+    if (rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) {
       res.statusCode = 403;
       res.end('Forbidden');
       return;
@@ -149,9 +150,7 @@ export function createPublicDirMiddleware(publicDir: string) {
         return;
       }
 
-      const stream = createReadStream(targetPath, { start: range.start, end: range.end });
-      stream.on('error', next);
-      stream.pipe(res);
+      pipeline(createReadStream(targetPath, { start: range.start, end: range.end }), res, () => undefined);
       return;
     }
 
@@ -165,9 +164,7 @@ export function createPublicDirMiddleware(publicDir: string) {
       return;
     }
 
-    const stream = createReadStream(targetPath);
-    stream.on('error', next);
-    stream.pipe(res);
+    pipeline(createReadStream(targetPath), res, () => undefined);
   };
 }
 

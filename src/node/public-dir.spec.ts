@@ -15,6 +15,7 @@ describe('public-dir', () => {
   beforeAll(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'freemotion-public-test-'));
     writeFileSync(join(tempDir, 'hello.txt'), 'Hello, World!');
+    writeFileSync(join(tempDir, '..dotfile.txt'), 'hidden content');
     writeFileSync(join(tempDir, 'image.png'), 'fake-png');
     writeFileSync(join(tempDir, 'vector.svg'), '<svg></svg>');
     writeFileSync(join(tempDir, 'data.json'), '{"ok":true}');
@@ -111,9 +112,24 @@ describe('public-dir', () => {
       });
       expect(res.statusCode).toBe(403);
     });
+
+    it('does not false-positive block files whose name starts with ..', async () => {
+      const res = await fetch(`${baseUrl}/..dotfile.txt`);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('hidden content');
+    });
   });
 
   describe('Range requests', () => {
+    it('clamps range end beyond file size per RFC 9110 and returns 206', async () => {
+      const res = await fetch(`${baseUrl}/hello.txt`, {
+        headers: { Range: 'bytes=0-1048575' },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get('content-range')).toBe('bytes 0-12/13');
+      expect(res.headers.get('content-length')).toBe('13');
+      expect(await res.text()).toBe('Hello, World!');
+    });
     it('responds with 206 for explicit start-end byte range', async () => {
       const res = await fetch(`${baseUrl}/hello.txt`, {
         headers: { Range: 'bytes=0-4' },

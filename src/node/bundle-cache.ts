@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, statSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { version as viteVersion, type Plugin } from 'vite';
@@ -10,6 +10,7 @@ import { packageVersion } from './paths.js';
 
 export type CacheFs = {
   stat(path: string): Promise<{ size: number; mtimeMs: number; isFile(): boolean; isDirectory(): boolean }>;
+  readdir(path: string): Promise<string[]>;
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
@@ -20,6 +21,7 @@ export type CacheFs = {
 
 export const defaultFs: CacheFs = {
   stat,
+  readdir,
   readFile,
   writeFile,
   mkdir: async (p, opts) => {
@@ -76,12 +78,58 @@ export type BundleMeta = {
   readonly packageLockMtime: number | null;
   readonly configFiles: readonly FileRecord[];
   readonly sourceFiles: readonly FileRecord[];
+  readonly envFiles?: readonly FileRecord[];
 };
+
+export async function collectEnvFiles(root: string, fs: CacheFs = defaultFs): Promise<FileRecord[]> {
+  const entries = await fs.readdir(root).catch(() => []);
+  const envFiles: FileRecord[] = [];
+  for (const entry of entries) {
+    if (entry === '.env' || entry.startsWith('.env.')) {
+      const fullPath = join(root, entry);
+      try {
+        const stats = await fs.stat(fullPath);
+        if (stats.isFile()) {
+          envFiles.push({ path: fullPath, size: stats.size, mtimeMs: stats.mtimeMs });
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  envFiles.sort((a, b) => a.path.localeCompare(b.path));
+  return envFiles;
+}
+
+export function collectEnvFilesSync(root: string): FileRecord[] {
+  try {
+    const entries = readdirSync(root);
+    const envFiles: FileRecord[] = [];
+    for (const entry of entries) {
+      if (entry === '.env' || entry.startsWith('.env.')) {
+        const fullPath = join(root, entry);
+        try {
+          const stats = statSync(fullPath);
+          if (stats.isFile()) {
+            envFiles.push({ path: fullPath, size: stats.size, mtimeMs: stats.mtimeMs });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    envFiles.sort((a, b) => a.path.localeCompare(b.path));
+    return envFiles;
+  } catch {
+    return [];
+  }
+}
 
 export type ValidateCacheOptions = {
   readonly root: string;
   readonly entry: string;
   readonly configFile?: string | false;
+  readonly configDependencies?: readonly string[];
   readonly freemotionVersion?: string;
   readonly viteVersion?: string;
 };
@@ -132,6 +180,34 @@ export async function isBundleCacheValid(
     return false;
   }
 
+  // Check config dependencies consistency
+  if (options.configDependencies !== undefined) {
+    const expectedSet = new Set(options.configDependencies);
+    const recordedSet = new Set(meta.configFiles.map(f => f.path));
+    if (expectedSet.size !== recordedSet.size) {
+      return false;
+    }
+    for (const dep of expectedSet) {
+      if (!recordedSet.has(dep)) {
+        return false;
+      }
+    }
+  }
+
+  // Check .env* files
+  const currentEnvFiles = await collectEnvFiles(options.root, fs);
+  const recordedEnvFiles = meta.envFiles ?? [];
+  if (currentEnvFiles.length !== recordedEnvFiles.length) {
+    return false;
+  }
+  for (let i = 0; i < currentEnvFiles.length; i++) {
+    const current = currentEnvFiles[i]!;
+    const recorded = recordedEnvFiles[i]!;
+    if (current.path !== recorded.path || current.size !== recorded.size || current.mtimeMs !== recorded.mtimeMs) {
+      return false;
+    }
+  }
+
   if (!Array.isArray(meta.sourceFiles) || meta.sourceFiles.length === 0) {
     return false;
   }
@@ -172,6 +248,15 @@ export async function isBundleCacheValid(
 export async function createStagingDir(bundleDir: string, fs: CacheFs = defaultFs): Promise<string> {
   const baseDir = dirname(bundleDir);
   await fs.mkdir(baseDir, { recursive: true });
+
+  // Clean up any stale staging or backup directories from interrupted processes
+  const entries = await fs.readdir(baseDir).catch(() => []);
+  for (const entry of entries) {
+    if (entry.startsWith('.staging-') || entry.startsWith('.old-')) {
+      await fs.rm(join(baseDir, entry), { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
   const staging = join(baseDir, `.staging-${basename(bundleDir)}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   await fs.mkdir(staging, { recursive: true });
   return staging;
@@ -203,6 +288,7 @@ export type BundleCachePluginOptions = {
   readonly root: string;
   readonly entry: string;
   readonly configFile?: string | false;
+  readonly configDependencies?: readonly string[];
   readonly onMeta?: (meta: BundleMeta) => void;
 };
 
@@ -252,6 +338,13 @@ export function bundleCachePlugin(options: BundleCachePluginOptions): Plugin {
           configPaths.add(dep);
         }
       }
+      if (options.configDependencies) {
+        for (const dep of options.configDependencies) {
+          if (existsSync(dep)) {
+            configPaths.add(dep);
+          }
+        }
+      }
 
       const configFiles: FileRecord[] = [];
       for (const path of configPaths) {
@@ -259,6 +352,8 @@ export function bundleCachePlugin(options: BundleCachePluginOptions): Plugin {
         configFiles.push({ path, size: stats.size, mtimeMs: stats.mtimeMs });
       }
       configFiles.sort((a, b) => a.path.localeCompare(b.path));
+
+      const envFiles = collectEnvFilesSync(options.root);
 
       const meta: BundleMeta = {
         freemotionVersion: packageVersion(),
@@ -268,6 +363,7 @@ export function bundleCachePlugin(options: BundleCachePluginOptions): Plugin {
         packageLockMtime: resolvePackageLockMtime(options.root),
         configFiles,
         sourceFiles,
+        envFiles,
       };
 
       this.emitFile({

@@ -40,6 +40,20 @@ function createMockFs(initialFiles: Record<string, string | { size: number; mtim
         isDirectory: () => false,
       };
     },
+    async readdir(dir: string) {
+      const results = new Set<string>();
+      const prefix = dir.endsWith('/') ? dir : dir + '/';
+      for (const key of store.keys()) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          const firstPart = rest.split('/')[0];
+          if (firstPart) {
+            results.add(firstPart);
+          }
+        }
+      }
+      return Array.from(results);
+    },
     async readFile(path: string) {
       const entry = store.get(path);
       if (!entry) {
@@ -233,6 +247,64 @@ describe('bundle-cache', () => {
       const valid = await isBundleCacheValid(bundleDir, { ...validOptions, configFile: '/project/vite.config.ts' }, fs);
       expect(valid).toBe(false);
     });
+
+    it('returns false when configDependencies list does not match meta.configFiles', async () => {
+      const metaWithConfig: BundleMeta = {
+        ...baseMeta,
+        configFile: '/project/vite.config.ts',
+        configFiles: [{ path: '/project/vite.config.ts', size: 200, mtimeMs: 3000 }],
+      };
+      const fs = createMockFs({
+        [join(bundleDir, 'meta.json')]: JSON.stringify(metaWithConfig),
+        [join(bundleDir, 'index.html')]: '<html></html>',
+        [entry]: { size: 100, mtimeMs: 2000 },
+        ['/project/src/App.tsx']: { size: 50, mtimeMs: 2000 },
+        ['/project/vite.config.ts']: { size: 200, mtimeMs: 3000 },
+        ['/project/plugin.ts']: { size: 100, mtimeMs: 3000 },
+      });
+      // options has an extra dependency that was not in meta
+      const valid = await isBundleCacheValid(bundleDir, {
+        ...validOptions,
+        configFile: '/project/vite.config.ts',
+        configDependencies: ['/project/vite.config.ts', '/project/plugin.ts'],
+      }, fs);
+      expect(valid).toBe(false);
+    });
+
+    it('returns false when .env file is added, changed or removed', async () => {
+      const metaWithEnv: BundleMeta = {
+        ...baseMeta,
+        envFiles: [{ path: '/project/.env', size: 20, mtimeMs: 1000 }],
+      };
+      // 1. Env file mtime changed
+      const fsChanged = createMockFs({
+        [join(bundleDir, 'meta.json')]: JSON.stringify(metaWithEnv),
+        [join(bundleDir, 'index.html')]: '<html></html>',
+        [entry]: { size: 100, mtimeMs: 2000 },
+        ['/project/src/App.tsx']: { size: 50, mtimeMs: 2000 },
+        ['/project/.env']: { size: 20, mtimeMs: 1500 },
+      });
+      expect(await isBundleCacheValid(bundleDir, validOptions, fsChanged)).toBe(false);
+
+      // 2. Env file removed
+      const fsRemoved = createMockFs({
+        [join(bundleDir, 'meta.json')]: JSON.stringify(metaWithEnv),
+        [join(bundleDir, 'index.html')]: '<html></html>',
+        [entry]: { size: 100, mtimeMs: 2000 },
+        ['/project/src/App.tsx']: { size: 50, mtimeMs: 2000 },
+      });
+      expect(await isBundleCacheValid(bundleDir, validOptions, fsRemoved)).toBe(false);
+
+      // 3. New env file added (.env.local)
+      const fsAdded = createMockFs({
+        [join(bundleDir, 'meta.json')]: JSON.stringify(baseMeta),
+        [join(bundleDir, 'index.html')]: '<html></html>',
+        [entry]: { size: 100, mtimeMs: 2000 },
+        ['/project/src/App.tsx']: { size: 50, mtimeMs: 2000 },
+        ['/project/.env.local']: { size: 30, mtimeMs: 1000 },
+      });
+      expect(await isBundleCacheValid(bundleDir, validOptions, fsAdded)).toBe(false);
+    });
   });
 
   describe('atomic publication', () => {
@@ -278,6 +350,18 @@ describe('bundle-cache', () => {
       expect(fs.existsSync(bundleDir)).toBe(true);
       expect(await fs.readFile(join(bundleDir, 'index.html'), 'utf8')).toBe('<html>previous-good</html>');
       expect(fs.existsSync(staging)).toBe(false);
+    });
+
+    it('cleans up stale .staging and .old directories when creating staging dir', async () => {
+      const fs = createMockFs({
+        ['/project/node_modules/.cache/freemotion/.staging-stale/file.js']: 'stale',
+        ['/project/node_modules/.cache/freemotion/.old-stale/file.js']: 'old',
+      });
+
+      await createStagingDir(bundleDir, fs);
+
+      expect(fs.existsSync('/project/node_modules/.cache/freemotion/.staging-stale')).toBe(false);
+      expect(fs.existsSync('/project/node_modules/.cache/freemotion/.old-stale')).toBe(false);
     });
   });
 

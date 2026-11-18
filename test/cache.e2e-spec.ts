@@ -1,7 +1,6 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { resolveBundleCacheDir } from '../dist/node/bundle-cache.js';
 
 import { centerPixel, FIXTURE, run } from './helpers.js';
 
@@ -9,28 +8,49 @@ import { centerPixel, FIXTURE, run } from './helpers.js';
 const OUT = join(FIXTURE, 'out/cache-test');
 const COMPOSITIONS_FILE = join(FIXTURE, 'src/compositions.tsx');
 const SVG_FILE = join(FIXTURE, 'public/square.svg');
-const ENTRY = join(FIXTURE, 'src/compositions.tsx');
+const VITE_CONFIG_FILE = join(FIXTURE, 'vite.config.ts');
+const TMP_CACHE = join(tmpdir(), 'freemotion-cache');
+const FIXTURE_CACHE = join(FIXTURE, 'node_modules/.cache/freemotion');
 
 const GREEN = [0, 255, 0];
 const RED = [255, 0, 0];
 
+function cleanAllCaches() {
+  rmSync(OUT, { recursive: true, force: true });
+  rmSync(TMP_CACHE, { recursive: true, force: true });
+  rmSync(FIXTURE_CACHE, { recursive: true, force: true });
+}
+
+function findBundleDirs(): string[] {
+  const dirs: string[] = [];
+  for (const base of [TMP_CACHE, FIXTURE_CACHE]) {
+    if (existsSync(base)) {
+      for (const entry of readdirSync(base)) {
+        if (entry.startsWith('bundle-')) {
+          dirs.push(join(base, entry));
+        }
+      }
+    }
+  }
+  return dirs;
+}
+
 describe('bundle cache and public serving', () => {
   let originalCompositions: string;
   let originalSvg: string;
-  const cacheDir = resolveBundleCacheDir(FIXTURE, ENTRY);
 
   beforeAll(() => {
     originalCompositions = readFileSync(COMPOSITIONS_FILE, 'utf8');
     originalSvg = readFileSync(SVG_FILE, 'utf8');
-    rmSync(OUT, { recursive: true, force: true });
-    rmSync(cacheDir, { recursive: true, force: true });
+    cleanAllCaches();
+    rmSync(VITE_CONFIG_FILE, { force: true });
   });
 
   afterAll(() => {
     writeFileSync(COMPOSITIONS_FILE, originalCompositions);
     writeFileSync(SVG_FILE, originalSvg);
-    rmSync(OUT, { recursive: true, force: true });
-    rmSync(cacheDir, { recursive: true, force: true });
+    rmSync(VITE_CONFIG_FILE, { force: true });
+    cleanAllCaches();
   });
 
   it('first render bundles compositions, second render uses cached bundle', async () => {
@@ -59,6 +79,35 @@ describe('bundle cache and public serving', () => {
 
     // Restore for subsequent tests
     writeFileSync(COMPOSITIONS_FILE, originalCompositions);
+  });
+
+  it('editing vite.config.* invalidates the cache and forces a rebuild', async () => {
+    try {
+      // 1. Create vite.config.ts
+      writeFileSync(VITE_CONFIG_FILE, 'export default {};\n');
+
+      const outCfg1 = join(OUT, 'config1.png');
+      const res1 = await run(['render', 'Colors', '--frame', '0', '-o', outCfg1], FIXTURE);
+      expect(res1.code).toBe(0);
+      expect(res1.stdout).toContain('Bundling compositions…');
+
+      // 2. Next render reuses cache
+      const outCfg2 = join(OUT, 'config2.png');
+      const res2 = await run(['render', 'Colors', '--frame', '0', '-o', outCfg2], FIXTURE);
+      expect(res2.code).toBe(0);
+      expect(res2.stdout).toContain('Using cached bundle');
+
+      // 3. Edit vite.config.ts (change content / mtime)
+      writeFileSync(VITE_CONFIG_FILE, 'export default { /* updated */ };\n');
+
+      const outCfg3 = join(OUT, 'config3.png');
+      const res3 = await run(['render', 'Colors', '--frame', '0', '-o', outCfg3], FIXTURE);
+      expect(res3.code).toBe(0);
+      expect(res3.stdout).toContain('Bundling compositions…');
+      expect(res3.stdout).not.toContain('Using cached bundle');
+    } finally {
+      rmSync(VITE_CONFIG_FILE, { force: true });
+    }
   });
 
   it('--no-build-cache always builds without using or writing cache', async () => {
@@ -95,6 +144,10 @@ describe('bundle cache and public serving', () => {
     expect(centerPixel(assetOut3)).toEqual(RED);
 
     // 5. Verify no files from public/ were copied into the bundle cache dir
-    expect(existsSync(join(cacheDir, 'square.svg'))).toBe(false);
+    const bundleDirs = findBundleDirs();
+    expect(bundleDirs.length).toBeGreaterThan(0);
+    for (const dir of bundleDirs) {
+      expect(existsSync(join(dir, 'square.svg'))).toBe(false);
+    }
   });
 });

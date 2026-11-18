@@ -280,7 +280,12 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
   let isCached = false;
 
   if (useCache) {
-    isCached = await isBundleCacheValid(cacheDir, { root, entry, configFile: options.configFile });
+    isCached = await isBundleCacheValid(cacheDir, {
+      root,
+      entry,
+      configFile: options.configFile,
+      configDependencies: base.configDependencies,
+    });
   }
 
   if (isCached) {
@@ -295,7 +300,12 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
           logLevel: 'warn',
           plugins: [
             renderHtmlPlugin(),
-            bundleCachePlugin({ root, entry, configFile: options.configFile }),
+            bundleCachePlugin({
+              root,
+              entry,
+              configFile: options.configFile,
+              configDependencies: base.configDependencies,
+            }),
           ],
           build: {
             outDir: stagingDir,
