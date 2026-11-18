@@ -39,9 +39,17 @@ describe('parseCommand', () => {
     expect(command).toMatchObject({
       name: 'render',
       quiet: false,
-      options: { root: '/project', compositions: ['Intro'], outDir: 'out', scale: 1, ffmpeg: undefined },
+      options: { root: '/project', compositions: ['Intro'], outDir: 'out', scale: 1, ffmpeg: undefined, buildCache: undefined },
     });
     expect(command.name === 'render' && command.options.concurrency).toBeGreaterThanOrEqual(1);
+  });
+
+  it('parses --no-build-cache', () => {
+    const command = parse('render', 'Intro', '--no-build-cache');
+    expect(command).toMatchObject({
+      name: 'render',
+      options: { buildCache: false },
+    });
   });
 
   it('parses every render option', () => {

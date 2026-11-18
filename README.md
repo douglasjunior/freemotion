@@ -202,6 +202,7 @@ npx freemotion render --all                      # every composition, to out/
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)
 --config <file>             Vite config to merge (default: vite.config.* in the project)
 --no-config                 Ignore the project's Vite config
+--no-build-cache            Rebuild compositions instead of using the cached bundle
 --ffmpeg <path>             ffmpeg binary (default: $FREEMOTION_FFMPEG, the project's ffmpeg-static, or ffmpeg on PATH)
 --browser-executable <path> Chromium/Chrome to use instead of the bundled headless shell
 --progress <mode>           Report machine-readable progress on stdout (json)
@@ -277,6 +278,7 @@ To control browser downloads in CI or headless environments and support WebGL (s
 - **Derive everything from the frame.** CSS animations, transitions and timers run on the wall clock and won't match between tabs. Use `interpolate()` and `spring()` instead.
 - **Use `random(seed)`** instead of `Math.random()`: the same seed gives the same number in every tab and on every machine.
 - **Wait for async data** with [`delayRender()`](#async-data-delayrender).
+- **Concurrent renders:** freemotion caches bundle builds under `node_modules/.cache/freemotion` across renders. When running concurrent render processes on the same project (e.g. parallel CI workers on one machine), pass `--no-build-cache` to give each process an isolated temporary directory.
 
 ## 🌐 Player
 
@@ -366,6 +368,7 @@ Everything is exported from `freemotion`.
 | `<Img>` | An `<img>` that holds the render until it has loaded. |
 | `<Audio src volume? loop? playbackRate? trimBefore? trimAfter? muted?>` | Declares an audio track synchronized with playback and mixed during render. |
 | `<Video src trimBefore? playbackRate? transparent? volume?>` | Renders a video. In render mode, extracts exact frames from the video frame server. In preview mode, synchronizes an HTML `<video>` element. |
+| `loadFont({ family, url, weight?, style?, display? })` | Loads a font via `FontFace`, holds the render until ready, and adds it to `document.fonts`. |
 | `staticFile(path)` | URL of a file in `public/`, respecting Vite's `base`. |
 | `delayRender(label?)` / `continueRender(handle)` / `cancelRender(error)` | Hold the render while something asynchronous loads. |
 | `random(seed)` | A deterministic number in `[0, 1)` for a seed. |
@@ -452,6 +455,22 @@ useEffect(() => {
 
 The renderer waits until every hold is released before capturing a frame. A hold that isn't released within 30 seconds fails the render with its label (configure it with `delayRender(label, { timeoutInMilliseconds })` or globally via the `--timeout <ms>` CLI flag).
 
+### Custom fonts: `loadFont()`
+
+Call `loadFont()` at the module top level to register and load a font before rendering:
+
+```tsx
+import { loadFont, staticFile } from 'freemotion';
+
+loadFont({
+  family: 'Inter',
+  url: staticFile('inter.woff2'),
+  weight: 400,
+});
+```
+
+`loadFont()` creates a `FontFace`, adds it to `document.fonts`, and takes a render hold until the font is loaded. Duplicate calls with identical parameters are reused. In non-browser environments (SSR, Node tests), it resolves immediately.
+
 ## 🔁 Coming from Remotion?
 
 freemotion keeps the names you already know, so most components move over by changing the import:
@@ -466,6 +485,7 @@ Same names: `useCurrentFrame`, `useVideoConfig`, `getEnvironment`, `interpolate`
 What's different:
 
 - **Registering compositions.** Instead of `<Composition>` elements under `registerRoot()`, `src/compositions.tsx` default-exports an array built with `defineComposition()`.
+- **Fonts.** Built-in `loadFont()` replaces `@remotion/fonts`: it registers a `FontFace`, holds the render until loaded, and deduplicates across hot reloads.
 - **The `<Player>`** takes the composition object (`composition={intro}`) and is controlled through its `frame` prop.
 - **Not there yet:** `calculateMetadata()` and cloud rendering.
 

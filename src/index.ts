@@ -9,6 +9,7 @@ export {
 export { cancelRender, continueRender, delayRender, type DelayRenderOptions } from './runtime/delay-render.js';
 export { Easing, type EasingFunction } from './runtime/easing.js';
 export { getEnvironment, type Environment } from './runtime/environment.js';
+export { loadFont, resetFontCache, type LoadFontOptions } from './runtime/font.js';
 export { useAbsoluteFrame, useCurrentFrame, usePremounting, useVideoConfig, type VideoConfig } from './runtime/frame.js';
 export { Freeze, type FreezeProps } from './runtime/freeze.js';
 export { Img, type ImgProps } from './runtime/img.js';

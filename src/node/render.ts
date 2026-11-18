@@ -12,6 +12,7 @@ import { RENDER_API_GLOBAL, type CompositionMeta } from '../shared/render-api.js
 
 import { AudioCollector, audioEncodeArgs, mixAudio, planAudio, probeAudioMedia, type AudioProbeInfo } from './audio/index.js';
 import { launchBrowser } from './browser.js';
+import { bundleCachePlugin, createStagingDir, isBundleCacheValid, publishBundle, resolveBundleCacheDir } from './bundle-cache.js';
 import {
   assertFfmpeg,
   DEFAULT_CODEC,
@@ -35,6 +36,7 @@ import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
 import { createReporter, type Reporter } from './progress.js';
 import { resolveEntry } from './project.js';
+import { resolvePublicDir, servePublicDirPlugin } from './public-dir.js';
 import { startVideoFrameServer, type VideoFrameServer } from './video/server.js';
 import { createViteConfig, renderHtmlPlugin } from './vite-config.js';
 
@@ -49,6 +51,8 @@ export type RenderOptions = {
   readonly root: string;
   readonly entry?: string;
   readonly configFile?: string | false;
+  /** Whether to reuse the cached build bundle if sources haven't changed. Default `true`. */
+  readonly buildCache?: boolean;
   /** Composition ids to render, or every composition of the project. */
   readonly compositions: readonly string[] | 'all';
   /** File to write when rendering a single composition. Its extension picks the format. */
@@ -566,30 +570,81 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
   }
   const reporter = createReporter({ mode: options.progress, log });
   const entry = resolveEntry(root, options.entry);
-  const outDir = await mkdtemp(join(tmpdir(), 'freemotion-'));
   const base = await createViteConfig({ root, entry, command: 'build', configFile: options.configFile });
-  log.info('Bundling compositions…');
-  reporter.event({ phase: 'bundle', status: 'start' });
-  await build(mergeConfig(base, {
-    base: '/',
-    logLevel: 'warn',
-    plugins: [renderHtmlPlugin()],
-    build: {
-      outDir,
-      emptyOutDir: true,
-      copyPublicDir: true,
-      reportCompressedSize: false,
-      rollupOptions: { input: RENDER_ENTRY },
-    },
-  } satisfies InlineConfig));
-  reporter.event({ phase: 'bundle', status: 'done' });
+  const useCache = options.buildCache !== false;
+  const cacheDir = resolveBundleCacheDir(root, entry);
+  let outDir = cacheDir;
+  let isCached = false;
 
+  if (useCache) {
+    isCached = await isBundleCacheValid(cacheDir, {
+      root,
+      entry,
+      configFile: options.configFile,
+      configDependencies: base.configDependencies,
+    });
+  }
+
+  if (isCached) {
+    log.info('Using cached bundle');
+  } else {
+    log.info('Bundling compositions…');
+    reporter.event({ phase: 'bundle', status: 'start' });
+    if (useCache) {
+      const stagingDir = await createStagingDir(cacheDir);
+      try {
+        await build(mergeConfig(base, {
+          base: '/',
+          logLevel: 'warn',
+          plugins: [
+            renderHtmlPlugin(),
+            bundleCachePlugin({
+              root,
+              entry,
+              configFile: options.configFile,
+              configDependencies: base.configDependencies,
+            }),
+          ],
+          build: {
+            outDir: stagingDir,
+            emptyOutDir: true,
+            copyPublicDir: false,
+            reportCompressedSize: false,
+            rollupOptions: { input: RENDER_ENTRY },
+          },
+        } satisfies InlineConfig));
+        await publishBundle(stagingDir, cacheDir);
+        outDir = cacheDir;
+      } catch (error) {
+        await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+        throw error;
+      }
+    } else {
+      outDir = await mkdtemp(join(tmpdir(), 'freemotion-'));
+      await build(mergeConfig(base, {
+        base: '/',
+        logLevel: 'warn',
+        plugins: [renderHtmlPlugin()],
+        build: {
+          outDir,
+          emptyOutDir: true,
+          copyPublicDir: false,
+          reportCompressedSize: false,
+          rollupOptions: { input: RENDER_ENTRY },
+        },
+      } satisfies InlineConfig));
+    }
+    reporter.event({ phase: 'bundle', status: 'done' });
+  }
+
+  const publicDir = resolvePublicDir(root, base.publicDir);
   const server = await preview({
     root,
     configFile: false,
     logLevel: 'warn',
     build: { outDir },
     preview: { port: 0, host: '127.0.0.1', open: false },
+    plugins: publicDir ? [servePublicDirPlugin(publicDir)] : [],
   });
   const { port } = server.httpServer.address() as AddressInfo;
   let browser: Browser | null = null;
@@ -597,9 +652,9 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
 
   try {
     const ffmpeg = resolveFfmpeg(root, options.ffmpeg);
-    const publicDir = typeof base.publicDir === 'string' ? resolve(root, base.publicDir) : join(root, 'public');
+    const resolvedPublicDir = publicDir || resolve(root, 'public');
     const cacheBytes = (options.videoCacheMb ?? 512) * 1024 * 1024;
-    videoServer = await startVideoFrameServer({ ffmpeg, publicDir, cacheBytes });
+    videoServer = await startVideoFrameServer({ ffmpeg, publicDir: resolvedPublicDir, cacheBytes });
 
     browser = await launchBrowser({
       executablePath: options.browserExecutable,
@@ -614,7 +669,7 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
       ffmpeg,
       videoServerUrl: videoServer.url,
       reporter,
-      publicDir,
+      publicDir: resolvedPublicDir,
     };
     const probe = await browser.newPage();
     await probe.goto(session.baseUrl);
@@ -651,6 +706,8 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
     await browser?.close();
     await server.close();
     await videoServer?.close();
-    await rm(outDir, { recursive: true, force: true });
+    if (!useCache) {
+      await rm(outDir, { recursive: true, force: true });
+    }
   }
 }

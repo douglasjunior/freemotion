@@ -164,6 +164,31 @@ export function referenceFrame(file: string, seconds: number, outputPath?: strin
   return target;
 }
 
+/** Rightmost pixel x-coordinate where color is darker than threshold (used to measure rendered text width). */
+export function rightmostDarkPixel(file: string, threshold = 200): number {
+  const { width, height } = probe(file);
+  const raw = execFileSync('ffmpeg', [
+    '-v', 'error', '-i', file,
+    '-frames:v', '1',
+    '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+  ], { maxBuffer: 64 * 1024 * 1024 });
+  let maxX = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 3;
+      const r = raw[offset]!;
+      const g = raw[offset + 1]!;
+      const b = raw[offset + 2]!;
+      if (r < threshold || g < threshold || b < threshold) {
+        if (x > maxX) {
+          maxX = x;
+        }
+      }
+    }
+  }
+  return maxX;
+}
+
 /** Asserts a color within a tolerance, for lossy formats. */
 export function expectColor(actual: readonly number[], expected: readonly number[], tolerance = 0) {
   actual.forEach((value, i) => expect(Math.abs(value - expected[i]!)).toBeLessThanOrEqual(tolerance));

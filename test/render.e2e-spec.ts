@@ -1,10 +1,12 @@
-import { existsSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { centerPixel, ensureSkillClips, expectColor, FIXTURE, hasEncoder, pixelAt, probe, run } from './helpers.js';
+import { centerPixel, ensureSkillClips, expectColor, FIXTURE, hasEncoder, pixelAt, probe, REPO, rightmostDarkPixel, run } from './helpers.js';
 
 
 const OUT = join(FIXTURE, 'out');
+const FONT_SRC = join(REPO, 'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2');
+const FONT_DEST = join(FIXTURE, 'public/inter.woff2');
 const RED = [255, 0, 0];
 const BLUE = [0, 0, 255];
 const GREEN = [0, 255, 0];
@@ -13,8 +15,12 @@ describe('freemotion render', () => {
   beforeAll(() => {
     rmSync(OUT, { recursive: true, force: true });
     ensureSkillClips();
+    copyFileSync(FONT_SRC, FONT_DEST);
   });
-  afterAll(() => rmSync(OUT, { recursive: true, force: true }));
+  afterAll(() => {
+    rmSync(OUT, { recursive: true, force: true });
+    rmSync(FONT_DEST, { force: true });
+  });
 
   it('renders an MP4 with every frame, tagged as BT.709', async () => {
     const { code, stdout } = await run(['render', 'Colors'], FIXTURE);
@@ -83,6 +89,22 @@ describe('freemotion render', () => {
     const output = join(OUT, 'asset.png');
     expect((await run(['render', 'Asset', '--frame', '0', '-o', output], FIXTURE)).code).toBe(0);
     expect(centerPixel(output)).toEqual(GREEN);
+  });
+
+  it('loads and applies a font with loadFont()', async () => {
+    const custom = join(OUT, 'font-custom.png');
+    const fallback = join(OUT, 'font-fallback.png');
+
+    expect((await run(['render', 'CustomFont', '--entry', 'src/font.tsx', '--frame', '0', '-o', custom], FIXTURE)).code).toBe(0);
+    expect((await run(['render', 'FallbackFont', '--entry', 'src/font.tsx', '--frame', '0', '-o', fallback], FIXTURE)).code).toBe(0);
+
+    const customWidth = rightmostDarkPixel(custom);
+    const fallbackWidth = rightmostDarkPixel(fallback);
+
+    expect(customWidth).toBeLessThan(fallbackWidth - 50);
+    expect(customWidth).toBeGreaterThan(50);
+    expect(customWidth).toBeLessThan(120);
+    expect(fallbackWidth).toBeGreaterThan(160);
   });
 
   it('renders every composition with --all', async () => {
@@ -225,7 +247,7 @@ describe('freemotion render', () => {
   describe('--progress json', () => {
     it('outputs strictly machine-parseable JSON lines to stdout with phase: done as the last line', async () => {
       const output = join(OUT, 'progress-colors.mp4');
-      const { code, stdout, stderr } = await run(['render', 'Colors', '-o', output, '--progress', 'json'], FIXTURE);
+      const { code, stdout, stderr } = await run(['render', 'Colors', '-o', output, '--progress', 'json', '--no-build-cache'], FIXTURE);
       expect(code).toBe(0);
 
       const lines = stdout.trim().split('\n').filter(Boolean);
