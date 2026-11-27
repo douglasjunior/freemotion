@@ -92,6 +92,135 @@ describe('FrameService unit logic', () => {
     vi.restoreAllMocks();
   });
 
+  describe('limit on live decoders', () => {
+    const probe = {
+      // 100 x 10 pixels: a decoder is estimated at 200 bytes a pixel, 200 000 bytes.
+      width: 100, height: 10, fps: 30, duration: 10, start: 0, codec: 'h264', pixFmt: 'yuv420p', hasAlpha: false, hasAudio: false,
+    };
+    const decoder = 200_000;
+
+    /** A fake ffmpeg that answers with one frame, and counts how many are running. */
+    function fakeFfmpeg() {
+      const running = new Map<ChildProcess, string>();
+      const alive = () => [...running.values()].sort();
+      const spawnFn = vi.fn().mockImplementation((_command: string, args: string[]) => {
+        const child = new EventEmitter() as unknown as ChildProcess;
+        const stdout = new EventEmitter() as unknown as NonNullable<ChildProcess['stdout']>;
+        stdout.pause = vi.fn() as unknown as () => typeof stdout;
+        stdout.resume = vi.fn() as unknown as () => typeof stdout;
+        child.stdout = stdout;
+        child.stderr = new EventEmitter() as unknown as NonNullable<ChildProcess['stderr']>;
+        Object.defineProperty(child, 'exitCode', { get: () => (running.has(child) ? null : 0) });
+        // Like ffmpeg, keeps sending frames until it is stopped.
+        const timer = setInterval(() => stdout.emit('data', JPEG_FRAME), 2);
+        child.kill = vi.fn().mockImplementation(() => {
+          clearInterval(timer);
+          running.delete(child);
+          child.emit('close', 0);
+          return true;
+        }) as unknown as () => boolean;
+        running.set(child, args[args.indexOf('-i') + 1]!);
+        return child;
+      });
+      return { spawnFn, running, alive };
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('keeps the decoders of the videos that were played within the memory budget', async () => {
+      vi.spyOn(probeModule, 'probeMedia').mockResolvedValue(probe);
+      const { spawnFn, running } = fakeFfmpeg();
+      const service = new FrameService({ spawn: spawnFn, decoderBudgetBytes: 3 * decoder });
+
+      // Fifteen takes, one after the other: each video is played and never asked for again.
+      for (let take = 0; take < 15; take++) {
+        await service.getFrame({ src: `take-${take}.mp4`, time: 0 });
+        expect(running.size).toBeLessThanOrEqual(3);
+      }
+
+      expect(spawnFn).toHaveBeenCalledTimes(15);
+      expect(running.size).toBe(3);
+      await service.close();
+      expect(running.size).toBe(0);
+    });
+
+    it('closes the least recently used decoder first', async () => {
+      vi.spyOn(probeModule, 'probeMedia').mockResolvedValue(probe);
+      const { spawnFn, alive } = fakeFfmpeg();
+      const service = new FrameService({ spawn: spawnFn, decoderBudgetBytes: 2 * decoder });
+
+      // Decoders note when they were last used in milliseconds, so keep the calls apart.
+      const later = () => new Promise(resolve => setTimeout(resolve, 5));
+      await service.getFrame({ src: 'a.mp4', time: 0 });
+      await later();
+      await service.getFrame({ src: 'b.mp4', time: 0 });
+      await later();
+      expect(alive()).toEqual(['a.mp4', 'b.mp4']);
+
+      // a.mp4 is used again, for a frame its decoder has not produced yet (a frame already in the cache
+      // would not touch the decoder), so b.mp4 is the one to go when c.mp4 needs room.
+      await service.getFrame({ src: 'a.mp4', time: 15 / 30 });
+      await later();
+      await service.getFrame({ src: 'c.mp4', time: 0 });
+      expect(alive()).toEqual(['a.mp4', 'c.mp4']);
+      await service.close();
+    });
+
+    it('closes more decoders to fit a bigger video, since the budget is memory and not a count', async () => {
+      // big.mp4 has twice the pixels of the others, so it is estimated at twice the memory.
+      vi.spyOn(probeModule, 'probeMedia').mockImplementation(async (src: string) => ({ ...probe, height: src === 'big.mp4' ? 20 : 10 }));
+      const { spawnFn, alive } = fakeFfmpeg();
+      const service = new FrameService({ spawn: spawnFn, decoderBudgetBytes: 3 * decoder });
+      const later = () => new Promise(resolve => setTimeout(resolve, 5));
+
+      for (const src of ['a.mp4', 'b.mp4', 'c.mp4']) {
+        await service.getFrame({ src, time: 0 });
+        await later();
+      }
+      expect(alive()).toEqual(['a.mp4', 'b.mp4', 'c.mp4']);
+
+      await service.getFrame({ src: 'big.mp4', time: 0 });
+      expect(alive()).toEqual(['big.mp4', 'c.mp4']);
+      await service.close();
+    });
+
+    it('makes a request wait for memory instead of starting a decoder over the budget', async () => {
+      vi.spyOn(probeModule, 'probeMedia').mockResolvedValue(probe);
+      const { spawnFn, running } = fakeFfmpeg();
+      let most = 0;
+      const watch = setInterval(() => {
+        most = Math.max(most, running.size);
+      }, 1);
+      const service = new FrameService({ spawn: spawnFn, decoderBudgetBytes: 2 * decoder });
+
+      // Six videos asked for at once: only two decoders fit, so the others wait until one is idle.
+      const frames = await Promise.all(['a', 'b', 'c', 'd', 'e', 'f'].map(name => service.getFrame({ src: `${name}.mp4`, time: 0 })));
+      clearInterval(watch);
+
+      expect(frames).toHaveLength(6);
+      expect(most).toBeLessThanOrEqual(2);
+      await service.close();
+    });
+
+    it('never closes a decoder that is being waited on', async () => {
+      vi.spyOn(probeModule, 'probeMedia').mockResolvedValue(probe);
+      const { spawnFn, alive } = fakeFfmpeg();
+      const service = new FrameService({ spawn: spawnFn, decoderBudgetBytes: decoder });
+
+      // Both are asked for at once, so both decoders are busy when the second one needs room.
+      await Promise.all([
+        service.getFrame({ src: 'a.mp4', time: 0 }),
+        service.getFrame({ src: 'b.mp4', time: 0 }),
+      ]);
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+      expect(alive().length).toBeGreaterThanOrEqual(1);
+      await service.close();
+      expect(alive()).toEqual([]);
+    });
+  });
+
   it('rejects immediately if closed and prevents spawning new decoders', async () => {
     let spawnCount = 0;
     const fakeSpawn = vi.fn().mockImplementation(() => {

@@ -11,6 +11,8 @@ export type VideoServerOptions = {
   readonly ffmpeg?: string;
   readonly publicDir: string;
   readonly cacheBytes?: number;
+  /** See `FrameServiceOptions.decoderBudgetBytes`. */
+  readonly decoderBudgetBytes?: number;
   readonly spawn?: typeof spawn;
 };
 
@@ -25,8 +27,8 @@ const ROUTE_PATH = '/__freemotion/video-frame';
  * Starts a local HTTP server that delivers exact video frames as JPEG or PNG.
  */
 export async function startVideoFrameServer(options: VideoServerOptions): Promise<VideoFrameServer> {
-  const { publicDir, ffmpeg, cacheBytes, spawn: spawnFn } = options;
-  const frameService = new FrameService({ ffmpeg, cacheBytes, spawn: spawnFn });
+  const { publicDir, ffmpeg, cacheBytes, decoderBudgetBytes, spawn: spawnFn } = options;
+  const frameService = new FrameService({ ffmpeg, cacheBytes, decoderBudgetBytes, spawn: spawnFn });
   const resolvedPublicDir = resolve(publicDir);
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {

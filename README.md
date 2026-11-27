@@ -226,6 +226,7 @@ npx freemotion render --all                      # every composition, to out/
 --recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
 --timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
 --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
+--video-decoder-memory-mb <mb>  Memory limit for the video decoders (ffmpeg) in MB (default: 35% of RAM)
 --gl <backend>              WebGL backend: angle, swangle, egl, swiftshader, vulkan
 --no-download               Fail if the browser is not installed instead of downloading it
 --entry <file>              File that exports the compositions (default: src/compositions.tsx)

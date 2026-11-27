@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { totalmem } from 'node:os';
 
 import { FrameDecoder } from './frame-decoder.js';
 import { sourceFrameIndex } from './frame-math.js';
@@ -22,15 +23,31 @@ export type GetFrameOptions = {
 export type FrameServiceOptions = {
   readonly ffmpeg?: string;
   readonly cacheBytes?: number;
+  /**
+   * Memory the ffmpeg decoders may use together. A decoder holds the frames of a whole video stream
+   * and costs about 200 bytes per pixel of the video (1.4 to 1.8 GB for 4K), so a render that goes
+   * through many videos would otherwise keep one decoder of each. When a new decoder does not fit,
+   * the idle ones used least recently are closed. Decoders waiting for a frame are never closed, so a
+   * render can go above this while several frames are requested at once.
+   * Default: 35% of the machine's memory.
+   */
+  readonly decoderBudgetBytes?: number;
   readonly spawn?: typeof spawn;
 };
 
 const DEFAULT_CACHE_BYTES = 512 * 1024 * 1024; // 512 MB
+const DEFAULT_BUDGET_SHARE = 0.35;
+/** How often a request that does not fit in the memory budget looks again. */
+const WAIT_FOR_MEMORY_MS = 25;
+/** Measured on 4K H.264 (1.4 to 1.8 GB for one stream): ffmpeg's decode, scale and JPEG queues. */
+const DECODER_BYTES_PER_PIXEL = 200;
 
 export class FrameService {
   private readonly ffmpeg: string;
   private readonly cache: ByteLruCache<FrameResult>;
   private readonly spawnFn: typeof spawn;
+  private readonly decoderBudgetBytes: number;
+  private readonly decoderBytes = new WeakMap<FrameDecoder, number>();
   private readonly decoders = new Map<string, FrameDecoder[]>();
   private readonly inflight = new Map<string, Promise<FrameResult>>();
   private isClosed = false;
@@ -39,6 +56,7 @@ export class FrameService {
     this.ffmpeg = options.ffmpeg ?? 'ffmpeg';
     this.cache = new ByteLruCache<FrameResult>(options.cacheBytes ?? DEFAULT_CACHE_BYTES);
     this.spawnFn = options.spawn ?? spawn;
+    this.decoderBudgetBytes = options.decoderBudgetBytes ?? totalmem() * DEFAULT_BUDGET_SHARE;
   }
 
   get cacheBytes(): number {
@@ -76,7 +94,7 @@ export class FrameService {
       return pending;
     }
 
-    const fetchPromise = this.fetchFrame(src, frameIndex, info.fps, usePng, info.codec, info.hasAlpha, contentType, format);
+    const fetchPromise = this.fetchFrame(src, frameIndex, info.fps, usePng, info.codec, info.hasAlpha, contentType, format, info.width * info.height * DECODER_BYTES_PER_PIXEL);
     this.inflight.set(cacheKey, fetchPromise);
 
     try {
@@ -95,37 +113,67 @@ export class FrameService {
     hasAlpha: boolean,
     contentType: 'image/jpeg' | 'image/png',
     format: 'jpeg' | 'png',
+    decoderCost: number,
   ): Promise<FrameResult> {
     if (this.isClosed) {
       throw new Error('freemotion: FrameService is closed.');
     }
 
+    const buffer = await this.requestFromDecoder({ src, frameIndex, fps, usePng, codec, hasAlpha, contentType, format, cost: decoderCost });
+    const result: FrameResult = {
+      buffer,
+      contentType,
+      format,
+      frameIndex,
+    };
+
+    const cacheKey = `${src}:${format}:${frameIndex}`;
+    this.cache.set(cacheKey, result, buffer.byteLength);
+    return result;
+  }
+
+  /**
+   * Asks for `frameIndex` from a decoder that can serve it: one already running just before it, or a
+   * new one. A new one is only started once it fits in the memory budget. Until then the request waits,
+   * because the decoders in the way are busy serving frames and become idle, and closable, as they finish.
+   * The frame is requested in the same step the decoder is picked, so that no other request sees it as
+   * idle and closes it in between.
+   */
+  private async requestFromDecoder({ src, frameIndex, fps, usePng, codec, hasAlpha, contentType, format, cost }: {
+    readonly src: string;
+    readonly frameIndex: number;
+    readonly fps: number;
+    readonly usePng: boolean;
+    readonly codec: string;
+    readonly hasAlpha: boolean;
+    readonly contentType: 'image/jpeg' | 'image/png';
+    readonly format: 'jpeg' | 'png';
+    readonly cost: number;
+  }): Promise<Buffer> {
     const sourceKey = `${src}:${format}`;
-    const allDecoders = this.decoders.get(sourceKey) ?? [];
-
-    // Filter out closed or exited decoders
-    const activeDecoders = allDecoders.filter(d => !d.closed && !d.exited);
-
     const maxJumpFrames = Math.round(2 * fps); // ~2 seconds forward jump threshold
 
-    // Choose active decoder with position <= frameIndex and jump <= maxJumpFrames
-    const eligible = activeDecoders.filter(d => d.position <= frameIndex && (frameIndex - d.position) <= maxJumpFrames);
-
-    let decoder: FrameDecoder;
-    const firstEligible = eligible.sort((a, b) => b.position - a.position)[0];
-    if (firstEligible) {
-      // Pick the closest decoder to frameIndex (maximum position)
-      decoder = firstEligible;
-    } else {
+    for (;;) {
       if (this.isClosed) {
         throw new Error('freemotion: FrameService is closed.');
       }
 
-      // Seek half a frame before target to guarantee the first frame pts matches target
-      const startTime = Math.max(0, (frameIndex - 0.5) / fps);
-      const isVp9Alpha = codec.includes('vp9') && hasAlpha;
+      const activeDecoders = (this.decoders.get(sourceKey) ?? []).filter(d => !d.closed && !d.exited);
 
-      let currentDecoders = [...activeDecoders];
+      // The active decoder closest before the frame, no more than ~2 seconds behind it.
+      const closest = activeDecoders
+        .filter(d => d.position <= frameIndex && (frameIndex - d.position) <= maxJumpFrames)
+        .sort((a, b) => b.position - a.position)[0];
+      if (closest) {
+        return closest.requestFrame(frameIndex);
+      }
+
+      if (!this.makeRoomForDecoder(cost)) {
+        await new Promise(resolve => setTimeout(resolve, WAIT_FOR_MEMORY_MS));
+        continue;
+      }
+
+      let currentDecoders = activeDecoders.filter(d => !d.closed);
       if (currentDecoders.length >= 2) {
         // Prefer closing an idle decoder (pendingCount === 0)
         const idleDecoders = currentDecoders.filter(d => d.pendingCount === 0);
@@ -137,42 +185,61 @@ export class FrameService {
         }
       }
 
-      decoder = new FrameDecoder({
+      const decoder = new FrameDecoder({
         ffmpeg: this.ffmpeg,
         src,
         fps,
-        startTime,
+        // Seek half a frame before target to guarantee the first frame pts matches target
+        startTime: Math.max(0, (frameIndex - 0.5) / fps),
         targetFrameIndex: frameIndex,
         transparent: usePng,
-        isVp9Alpha,
+        isVp9Alpha: codec.includes('vp9') && hasAlpha,
         spawn: this.spawnFn,
         onFrame: (idx, buf) => {
-          const key = `${src}:${format}:${idx}`;
-          const res: FrameResult = {
-            buffer: buf,
-            contentType,
-            format,
-            frameIndex: idx,
-          };
-          this.cache.set(key, res, buf.byteLength);
+          this.cache.set(`${src}:${format}:${idx}`, { buffer: buf, contentType, format, frameIndex: idx }, buf.byteLength);
         },
       });
-
+      this.decoderBytes.set(decoder, cost);
       currentDecoders.push(decoder);
       this.decoders.set(sourceKey, currentDecoders);
+      return decoder.requestFrame(frameIndex);
     }
+  }
 
-    const buffer = await decoder.requestFrame(frameIndex);
-    const result: FrameResult = {
-      buffer,
-      contentType,
-      format,
-      frameIndex,
-    };
+  /** Decoders that are still running, of every video. Forgets the ones that ended. */
+  private liveDecoders(): FrameDecoder[] {
+    const live: FrameDecoder[] = [];
+    for (const [key, list] of this.decoders) {
+      const running = list.filter(decoder => !decoder.closed && !decoder.exited);
+      if (running.length > 0) {
+        this.decoders.set(key, running);
+        live.push(...running);
+      } else {
+        this.decoders.delete(key);
+      }
+    }
+    return live;
+  }
 
-    const cacheKey = `${src}:${format}:${frameIndex}`;
-    this.cache.set(cacheKey, result, buffer.byteLength);
-    return result;
+  /**
+   * Closes the least recently used idle decoders, of any video, until one more of `cost` bytes fits in
+   * the budget. Returns false when it still does not fit because the rest are busy. A decoder is always
+   * allowed when none is running, even one bigger than the whole budget.
+   */
+  private makeRoomForDecoder(cost: number): boolean {
+    const live = this.liveDecoders();
+    const idle = live.filter(decoder => decoder.pendingCount === 0).sort((a, b) => a.lastUsedAt - b.lastUsedAt);
+    let used = live.reduce((sum, decoder) => sum + (this.decoderBytes.get(decoder) ?? 0), 0);
+    let running = live.length;
+    for (const decoder of idle) {
+      if (used + cost <= this.decoderBudgetBytes) {
+        break;
+      }
+      used -= this.decoderBytes.get(decoder) ?? 0;
+      running--;
+      void decoder.close();
+    }
+    return running === 0 || used + cost <= this.decoderBudgetBytes;
   }
 
   async close(): Promise<void> {
