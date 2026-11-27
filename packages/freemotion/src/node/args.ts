@@ -88,7 +88,7 @@ Options
   --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
   --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
   --video-bitrate <rate>      Target bitrate such as 8M or 5000k, instead of --crf (needed to size GPU encodes)
-  --hardware-acceleration <m> disable (default), if-possible or required: encode h264/h265 on an NVIDIA GPU
+  --hardware-acceleration <m> disable (default), if-possible or required: encode h264/h265 on the GPU
   --audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
   --muted                     Mute all audio in the rendered video
   --silent-audio              Add a silent audio track when no audio is present (or when --muted)

@@ -77,7 +77,7 @@ export type RenderOptions = {
   readonly crf?: number;
   /** Target bitrate such as `8M`, instead of `crf`. */
   readonly videoBitrate?: string;
-  /** Encode h264 and h265 on an NVIDIA GPU: `disable` (default), `if-possible` or `required`. */
+  /** Encode h264 and h265 on the GPU: `disable` (default), `if-possible` or `required`. */
   readonly hardwareAcceleration?: HardwareAcceleration;
   /** Device pixel ratio: 2 renders twice the width and height. */
   readonly scale: number;
