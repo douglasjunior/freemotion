@@ -1,3 +1,4 @@
+import { createRateTracker, describeRate } from './eta.js';
 import type { Logger } from './logger.js';
 
 
@@ -39,6 +40,7 @@ export function createReporter({
   const isJson = mode === 'json';
   const lastTimes = new Map<string, number>();
   const hasEncode = new Set<string>();
+  const rates = new Map<string, ReturnType<typeof createRateTracker>>();
 
   const reportProgress = (message: string) => {
     if (log) {
@@ -68,22 +70,21 @@ export function createReporter({
 
       if (e.phase === 'encode') {
         hasEncode.add(e.id);
+      }
+      if (e.phase === 'encode' || (e.phase === 'render' && !hasEncode.has(e.id))) {
         const key = `default:${e.id}`;
         const last = lastTimes.get(key) ?? -Infinity;
         const currentTime = now();
         const isFinal = e.done === e.total;
         if (isFinal || currentTime - last >= throttleMs) {
           lastTimes.set(key, currentTime);
-          reportProgress(`${e.id} · ${e.done}/${e.total} frames`);
-        }
-      } else if (e.phase === 'render' && !hasEncode.has(e.id)) {
-        const key = `default:${e.id}`;
-        const last = lastTimes.get(key) ?? -Infinity;
-        const currentTime = now();
-        const isFinal = e.done === e.total;
-        if (isFinal || currentTime - last >= throttleMs) {
-          lastTimes.set(key, currentTime);
-          reportProgress(`${e.id} · ${e.done}/${e.total} frames`);
+          // Rendered and encoded counts differ, so each phase gets its own estimate.
+          const rateKey = `${e.phase}:${e.id}`;
+          if (!rates.has(rateKey)) {
+            rates.set(rateKey, createRateTracker());
+          }
+          const rate = rates.get(rateKey)!.update(currentTime, e.done, e.total);
+          reportProgress(`${e.id} · ${e.done}/${e.total} frames${rate ? ` · ${describeRate(rate)}` : ''}`);
         }
       }
     },
