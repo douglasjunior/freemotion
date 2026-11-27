@@ -24,6 +24,7 @@ import {
   type AudioCodec,
   type Codec,
   type ContainerFormat,
+  type HardwareAcceleration,
   type ImageFormat,
   type OutputFormat,
   type PixelFormat,
@@ -31,6 +32,7 @@ import {
   type VideoFormat,
 } from './ffmpeg.js';
 import { type GlBackend } from './gl.js';
+import { chooseEncoder, describeChoice, SOFTWARE } from './hardware.js';
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
@@ -73,6 +75,10 @@ export type RenderOptions = {
   readonly props?: Record<string, unknown>;
   readonly concurrency: number;
   readonly crf?: number;
+  /** Target bitrate such as `8M`, instead of `crf`. */
+  readonly videoBitrate?: string;
+  /** Encode h264 and h265 on an NVIDIA GPU: `disable` (default), `if-possible` or `required`. */
+  readonly hardwareAcceleration?: HardwareAcceleration;
   /** Device pixel ratio: 2 renders twice the width and height. */
   readonly scale: number;
   /** Memory limit for decoded video frames in MB. Default: 512. */
@@ -325,6 +331,15 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
   }
   const videoOutput = jobTempDir ? join(jobTempDir, `video.${format}`) : job.output;
 
+  const acceleration = options.hardwareAcceleration ?? 'disable';
+  const choice = format === 'gif'
+    ? SOFTWARE
+    : await chooseEncoder({ mode: acceleration, codec, pixelFormat, crf: options.crf, videoBitrate: options.videoBitrate, size: { width, height }, ffmpeg: session.ffmpeg });
+  const choiceMessage = format === 'gif' ? null : describeChoice(acceleration, choice);
+  if (choiceMessage) {
+    options.log.info(choiceMessage);
+  }
+
   const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({
     format,
     fps,
@@ -333,6 +348,8 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     proresProfile,
     imageFormat,
     crf: options.crf,
+    videoBitrate: options.videoBitrate,
+    hardware: choice.plan ?? undefined,
     loop: options.loop,
     overwrite: format === 'gif' ? options.overwrite : true,
     output: videoOutput,

@@ -33,6 +33,21 @@ describe('freemotion render', () => {
     expectColor(centerPixel(file, 7), BLUE, 6);
   });
 
+  it('renders on the GPU when it can and says which encoder it used, otherwise in software', async () => {
+    const output = join(OUT, 'accelerated.mp4');
+    const { code, stdout } = await run(['render', 'Colors', '--hardware-acceleration', 'if-possible', '--video-bitrate', '2M', '-o', output], FIXTURE);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Encoder: \w+ \(.+\), hardware accelerated: true|Hardware acceleration unavailable: .+ Encoding in software\./);
+    expect(probe(output)).toMatchObject({ codec_name: 'h264', pix_fmt: 'yuv420p', nb_read_frames: '10' });
+    expectColor(centerPixel(output, 2), RED, 12);
+  });
+
+  it('fails instead of falling back when acceleration is required but --crf rules the GPU out', async () => {
+    const { code, stderr } = await run(['render', 'Colors', '--hardware-acceleration', 'required', '--crf', '20', '-o', join(OUT, 'never.mp4')], FIXTURE);
+    expect(code).not.toBe(0);
+    expect(stderr).toMatch(/--hardware-acceleration required, but --crf does not apply to GPU encoders/);
+  });
+
   it('renders a still PNG of one frame, losslessly', async () => {
     const output = join(OUT, 'still.png');
     expect((await run(['render', 'Colors', '--frame', '7', '-o', output], FIXTURE)).code).toBe(0);

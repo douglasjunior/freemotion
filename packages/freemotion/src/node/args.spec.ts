@@ -103,6 +103,13 @@ describe('parseCommand', () => {
     });
   });
 
+  it('parses --hardware-acceleration and --video-bitrate', () => {
+    expect(parse('render', 'Intro', '--hardware-acceleration', 'if-possible', '--video-bitrate', '8M')).toMatchObject({
+      options: { hardwareAcceleration: 'if-possible', videoBitrate: '8M' },
+    });
+    expect(parse('render', 'Intro')).toMatchObject({ options: { hardwareAcceleration: undefined, videoBitrate: undefined } });
+  });
+
   it('parses encoding flags for mp4, webm and mov', () => {
     expect(parse('render', 'Intro', '--codec', 'h265', '--pixel-format', 'yuv422p')).toMatchObject({
       options: { codec: 'h265', pixelFormat: 'yuv422p' },
@@ -204,6 +211,10 @@ describe('parseCommand', () => {
     [['render', 'A', '-o', 'out.mov', '--codec', 'vp9'], /Format "mov" does not support codec "vp9"/],
     [['render', 'A', '-o', 'out.gif', '--codec', 'h264'], /Format "gif" does not support --codec/],
     [['render', 'A', '--frame', '0', '--codec', 'h264'], /Format "png" does not support --codec/],
+    [['render', 'A', '--hardware-acceleration', 'gpu'], /--hardware-acceleration must be one of disable, if-possible, required/],
+    [['render', 'A', '--video-bitrate', 'fast'], /--video-bitrate must be a number with an optional k or M/],
+    [['render', 'A', '--video-bitrate', '8M', '--crf', '20'], /--crf and --video-bitrate cannot be used together/],
+    [['render', 'A', '-o', 'out.mov', '--video-bitrate', '8M'], /--video-bitrate cannot be used with prores/],
     [['render', 'A', '-o', 'out.mov', '--crf', '18'], /--crf cannot be used with prores/],
     [['render', 'A', '--codec', 'h264', '--prores-profile', 'hq'], /--prores-profile is only valid with prores codec/],
     [['render', 'A', '-o', 'out.mov', '--prores-profile', 'lossless'], /--prores-profile must be one of/],

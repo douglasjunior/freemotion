@@ -218,6 +218,8 @@ npx freemotion render --all                      # every composition, to out/
 --pixel-format <format>     Pixel format (default: yuv420p)
 --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
 --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+--video-bitrate <rate>      Target bitrate such as 8M or 5000k, instead of --crf
+--hardware-acceleration <mode>  disable (default), if-possible or required: encode h264 and h265 on the GPU
 --audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
 --muted                     Mute all audio in the rendered video
 --silent-audio              Add a silent audio track when no audio is present (or when --muted)
@@ -239,6 +241,28 @@ npx freemotion render --all                      # every composition, to out/
 ```
 
 </details>
+
+### Hardware acceleration (`--hardware-acceleration`)
+
+By default videos are encoded on the CPU. `--hardware-acceleration if-possible` encodes **h264 and h265** on the GPU when the machine has a working encoder, and falls back to the CPU when it doesn't. `required` fails the render instead of falling back, and `disable` (the default) never uses the GPU.
+
+```bash
+npx freemotion render Intro --hardware-acceleration if-possible
+# Encoder: h264_nvenc (NVIDIA NVENC), hardware accelerated: true
+```
+
+| Platform | Encoders tried, in order |
+|---|---|
+| Windows | NVIDIA NVENC, AMD AMF |
+| Linux | NVIDIA NVENC, VA-API (AMD, Intel) |
+| macOS | Apple VideoToolbox |
+
+- **freemotion tries the encoder before using it.** It encodes one tiny frame with the same options the render will use, because an encoder that ffmpeg lists can still fail to start without the GPU, the driver or the device. The answer is remembered while the process runs, and the log says which encoder was picked, or why the CPU was used.
+- **Quality.** `--crf` does not apply to GPU encoders: with `if-possible` the render falls back to the CPU, and with `required` it fails. NVENC aims for a constant quality that, in a test on a 1080p clip, came out at a file size and sharpness close to `libx264 --crf 18` (16.2 MB against 16.9 MB, SSIM 0.9916 against 0.9927). The other encoders have no such default, so they need `--video-bitrate`. Use it to control size on any encoder, for example `--video-bitrate 8M`.
+- **Only h264 and h265 with `yuv420p`.** VP9, ProRes, GIF and other pixel formats are encoded on the CPU.
+- **What it speeds up.** Only the encoding step. Drawing the frames in Chromium still runs on the CPU, so the gain is largest for long, high-resolution videos.
+- **VA-API device.** It uses `/dev/dri/renderD128`. Point `FREEMOTION_VAAPI_DEVICE` to another render device if the machine has several GPUs.
+- Of these encoders, NVENC has been tested on real hardware. AMF, VA-API and VideoToolbox use the options documented by ffmpeg, and the check above keeps a setup where they don't work from producing a broken file.
 
 ### Machine-readable progress (`--progress json`)
 
@@ -524,6 +548,8 @@ Common configuration migrations:
 | Remotion configuration | freemotion render flag |
 |---|---|
 | `Config.setCrf(...)` | `--crf` |
+| `Config.setVideoBitrate(...)` | `--video-bitrate` |
+| `Config.setHardwareAcceleration(...)` | `--hardware-acceleration` (`disable`, `if-possible`, `required`) |
 | `Config.setCodec(...)` | `--codec` |
 | `Config.setConcurrency(...)` | `--concurrency` |
 | `Config.setOverwriteOutput(...)` | `--overwrite` / `--no-overwrite` |

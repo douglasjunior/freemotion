@@ -26,6 +26,39 @@ describe('ffmpegArgs', () => {
     expect(args.at(-1)).toBe('o.mp4');
   });
 
+  it('encodes on the GPU with the options of the chosen backend', () => {
+    const nvenc = ffmpegArgs({ format: 'mp4', fps: 30, hardware: { encoder: 'h264_nvenc', inputArgs: [], rateArgs: ['-rc', 'vbr', '-cq', '19', '-b:v', '0'] }, output: 'o.mp4' });
+    expect(nvenc).toContain('h264_nvenc');
+    expect(nvenc).not.toContain('libx264');
+    expect(nvenc).not.toContain('-crf');
+    expect(after(nvenc, '-cq')).toBe('19');
+
+    const hevc = ffmpegArgs({ format: 'mp4', fps: 30, codec: 'h265', hardware: { encoder: 'hevc_nvenc', inputArgs: [], rateArgs: ['-b:v', '8M'] }, output: 'o.mp4' });
+    expect(hevc).toContain('hevc_nvenc');
+    expect(after(hevc, '-tag:v')).toBe('hvc1');
+    expect(after(hevc, '-b:v')).toBe('8M');
+  });
+
+  it('puts the device before the input and the upload filter at the end of the chain', () => {
+    const args = ffmpegArgs({
+      format: 'mp4',
+      fps: 30,
+      hardware: { encoder: 'h264_vaapi', inputArgs: ['-vaapi_device', '/dev/dri/renderD128'], filter: 'format=nv12,hwupload', rateArgs: ['-b:v', '8M'] },
+      output: 'o.mp4',
+    });
+    expect(args.indexOf('-vaapi_device')).toBeLessThan(args.indexOf('-i'));
+    expect(after(args, '-vf')).toMatch(/setparams=.*,format=nv12,hwupload$/);
+  });
+
+  it('uses a target bitrate instead of CRF in software too', () => {
+    const h264 = ffmpegArgs({ format: 'mp4', fps: 30, videoBitrate: '5000k', output: 'o.mp4' });
+    expect(after(h264, '-b:v')).toBe('5000k');
+    expect(h264).not.toContain('-crf');
+    const vp9 = ffmpegArgs({ format: 'webm', fps: 30, videoBitrate: '2M', output: 'o.webm' });
+    expect(after(vp9, '-b:v')).toBe('2M');
+    expect(vp9).not.toContain('-crf');
+  });
+
   it('encodes H.264 tagged as BT.709', () => {
     const args = ffmpegArgs({ format: 'mp4', fps: 30, output: 'o.mp4' });
     expect(after(args.slice(12), '-c:v')).toBe('libx264');
