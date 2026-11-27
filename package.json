@@ -24,7 +24,7 @@
     "lint": "eslint . --cache --cache-location .eslintcache/",
     "lint:fix": "eslint . --fix",
     "test": "pnpm -r run test",
-    "test:e2e": "pnpm --filter freemotion run test:e2e"
+    "test:e2e": "pnpm run build && pnpm --filter freemotion exec vitest run --config ./vitest.config.e2e.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
