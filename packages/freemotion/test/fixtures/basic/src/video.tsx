@@ -1,4 +1,4 @@
-import { AbsoluteFill, defineComposition, Sequence, staticFile, Video } from 'freemotion';
+import { AbsoluteFill, defineComposition, Sequence, Series, staticFile, Video } from 'freemotion';
 
 
 const size = { fps: 30, width: 64, height: 64 };
@@ -49,6 +49,17 @@ const VideoCuts = () => (
   </AbsoluteFill>
 );
 
+/** One clip after another, so that every shot needs a decoder of its own. */
+const DecoderBudget = () => (
+  <Series>
+    {['red', 'green', 'blue'].map(color => (
+      <Series.Sequence key={color} durationInFrames={10}>
+        <Video src={staticFile(`clips/budget-${color}.mp4`)} style={{ width: '100%', height: '100%' }} />
+      </Series.Sequence>
+    ))}
+  </Series>
+);
+
 const VideoAlphaWebm = () => (
   <AbsoluteFill style={{ backgroundColor: '#ff0000' }}>
     <Video
@@ -81,6 +92,7 @@ export default [
     defaultProps: { playbackRate: 1, trimBefore: 0 },
   }),
   defineComposition({ ...size, id: 'VideoCuts', component: VideoCuts, durationInFrames: 30 }),
+  defineComposition({ ...size, id: 'DecoderBudget', component: DecoderBudget, durationInFrames: 30 }),
   defineComposition({ ...size, id: 'VideoAlphaWebm', component: VideoAlphaWebm, durationInFrames: 10 }),
   defineComposition({ ...size, id: 'VideoAlphaProRes', component: VideoAlphaProRes, durationInFrames: 10 }),
 ];
