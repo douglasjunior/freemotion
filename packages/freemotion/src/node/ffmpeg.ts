@@ -44,6 +44,21 @@ export const DEFAULT_CODEC: Record<ContainerFormat, Codec> = {
   mov: 'prores',
 };
 
+/** `if-possible` uses a GPU encoder when one works and falls back to software; `required` fails instead. */
+export type HardwareAcceleration = 'disable' | 'if-possible' | 'required';
+export const HARDWARE_ACCELERATIONS: readonly HardwareAcceleration[] = ['disable', 'if-possible', 'required'];
+
+/** A GPU encoder resolved by `chooseEncoder`: the encoder, and what it needs around it. */
+export type HardwarePlan = {
+  readonly encoder: string;
+  /** Options placed before the input, such as the device to encode on. */
+  readonly inputArgs: readonly string[];
+  /** Filters that hand the frames to the encoder, appended to the filter chain. */
+  readonly filter?: string;
+  /** Quality or bitrate options for the encoder. */
+  readonly rateArgs: readonly string[];
+};
+
 export type AudioCodec = 'aac' | 'opus';
 export const AUDIO_CODECS: readonly AudioCodec[] = ['aac', 'opus'];
 
@@ -97,12 +112,18 @@ export type FfmpegArgsOptions = {
   readonly proresProfile?: ProResProfile;
   readonly imageFormat?: ImageFormat;
   readonly crf?: number;
+  /** Target bitrate such as `8M` or `5000k`, instead of constant quality. */
+  readonly videoBitrate?: string;
+  /** Encode H.264 or H.265 on the GPU (see `chooseEncoder`). `crf` is ignored then. */
+  readonly hardware?: HardwarePlan;
   /** GIF: play again from the start (default), or stop on the last frame. */
   readonly loop?: boolean;
   /** Overwrite existing output file (default: true). */
   readonly overwrite?: boolean;
   readonly output: string;
 };
+
+const softwareRate = (videoBitrate: string | undefined, crf: number) => (videoBitrate ? ['-b:v', videoBitrate] : ['-crf', String(crf)]);
 
 /** ffmpeg arguments that read frames from stdin and encode them to `output`. */
 export function ffmpegArgs({
@@ -113,13 +134,15 @@ export function ffmpegArgs({
   proresProfile,
   imageFormat = 'png',
   crf,
+  videoBitrate,
+  hardware,
   loop = true,
   overwrite = true,
   output,
 }: FfmpegArgsOptions): string[] {
   const overwriteFlag = overwrite ? '-y' : '-n';
   const inputCodec = imageFormat === 'jpeg' ? 'mjpeg' : 'png';
-  const input = ['-hide_banner', '-loglevel', 'error', overwriteFlag, '-f', 'image2pipe', '-framerate', String(fps), '-c:v', inputCodec, '-i', '-'];
+  const input = ['-hide_banner', '-loglevel', 'error', overwriteFlag, ...(hardware?.inputArgs ?? []), '-f', 'image2pipe', '-framerate', String(fps), '-c:v', inputCodec, '-i', '-'];
 
   if (format === 'gif') {
     return [
@@ -141,14 +164,16 @@ export function ffmpegArgs({
   const scale = imageFormat === 'jpeg'
     ? 'scale=in_range=pc:in_color_matrix=bt601:out_color_matrix=bt709:out_range=tv'
     : 'scale=out_color_matrix=bt709:out_range=tv';
-  const vf = `${scale},format=${resolvedPixelFormat},setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709`;
+  const vf = `${scale},format=${resolvedPixelFormat},setsar=1,setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709${hardware?.filter ? `,${hardware.filter}` : ''}`;
 
   switch (resolvedCodec) {
     case 'h264':
       return [
         ...input,
         '-vf', vf,
-        '-c:v', 'libx264', '-crf', String(crf ?? DEFAULT_CRF.h264),
+        ...(hardware
+          ? ['-c:v', hardware.encoder, ...hardware.rateArgs]
+          : ['-c:v', 'libx264', ...softwareRate(videoBitrate, crf ?? DEFAULT_CRF.h264)]),
         '-video_track_timescale', '90000', '-movflags', '+faststart',
         output,
       ];
@@ -156,7 +181,9 @@ export function ffmpegArgs({
       return [
         ...input,
         '-vf', vf,
-        '-c:v', 'libx265', '-tag:v', 'hvc1', '-crf', String(crf ?? DEFAULT_CRF.h265),
+        ...(hardware
+          ? ['-c:v', hardware.encoder, '-tag:v', 'hvc1', ...hardware.rateArgs]
+          : ['-c:v', 'libx265', '-tag:v', 'hvc1', ...softwareRate(videoBitrate, crf ?? DEFAULT_CRF.h265)]),
         '-video_track_timescale', '90000', '-movflags', '+faststart',
         output,
       ];
@@ -165,7 +192,7 @@ export function ffmpegArgs({
       return [
         ...input,
         '-vf', vf,
-        '-c:v', 'libvpx-vp9', '-crf', String(crf ?? DEFAULT_CRF.vp9), '-b:v', '0', '-row-mt', '1',
+        '-c:v', 'libvpx-vp9', ...(videoBitrate ? ['-b:v', videoBitrate] : ['-crf', String(crf ?? DEFAULT_CRF.vp9), '-b:v', '0']), '-row-mt', '1',
         ...vp9Extra,
         output,
       ];

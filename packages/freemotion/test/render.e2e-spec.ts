@@ -1,4 +1,5 @@
-import { copyFileSync, existsSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { centerPixel, ensureSkillClips, expectColor, FIXTURE, hasEncoder, pixelAt, probe, REPO, rightmostDarkPixel, run } from './helpers.js';
@@ -31,6 +32,35 @@ describe('freemotion render', () => {
     expect(probe(file)).toMatchObject({ codec_name: 'h264', width: 64, height: 64, pix_fmt: 'yuv420p', nb_read_frames: '10', color_space: 'bt709' });
     expectColor(centerPixel(file, 2), RED, 6);
     expectColor(centerPixel(file, 7), BLUE, 6);
+  });
+
+  it('renders on the GPU when it can and says which encoder it used, otherwise in software', async () => {
+    const output = join(OUT, 'accelerated.mp4');
+    const { code, stdout } = await run(['render', 'Colors', '--hardware-acceleration', 'if-possible', '--video-bitrate', '2M', '-o', output], FIXTURE);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Encoder: \w+ \(.+\), hardware accelerated: true|Hardware acceleration unavailable: .+ Encoding in software\./);
+    expect(probe(output)).toMatchObject({ codec_name: 'h264', pix_fmt: 'yuv420p', nb_read_frames: '10' });
+    expectColor(centerPixel(output, 2), RED, 12);
+  });
+
+  it('fails instead of falling back when acceleration is required but --crf rules the GPU out', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'freemotion-e2e-'));
+    try {
+      const { code, stderr } = await run(['render', 'Colors', '--hardware-acceleration', 'required', '--crf', '20', '-o', join(OUT, 'never.mp4')], FIXTURE, { TMPDIR: temp });
+      expect(code).not.toBe(0);
+      expect(stderr).toMatch(/--hardware-acceleration required, but --crf does not apply to GPU encoders/);
+      expect(readdirSync(temp).filter(name => name.startsWith('freemotion-Colors-'))).toEqual([]);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('fails for a GIF when acceleration is required, since GIF is only encoded in software', async () => {
+    const output = join(OUT, 'never.gif');
+    const { code, stderr } = await run(['render', 'Colors', '--hardware-acceleration', 'required', '-o', output], FIXTURE);
+    expect(code).not.toBe(0);
+    expect(stderr).toMatch(/--hardware-acceleration required, but this format is only encoded in software/);
+    expect(existsSync(output)).toBe(false);
   });
 
   it('renders a still PNG of one frame, losslessly', async () => {

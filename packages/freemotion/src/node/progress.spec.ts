@@ -134,5 +134,50 @@ describe('createReporter', () => {
         'Intro · 10/10 frames',
       ]);
     });
+
+    it('adds the speed and the time left once there is a second of progress, and drops them at the end', () => {
+      const progressCalls: string[] = [];
+      const log = { info: vi.fn(), progress: (msg: string) => progressCalls.push(msg), done: vi.fn(), error: vi.fn() };
+      let now = 0;
+      const reporter = createReporter({ stdout: createMockStream(), log, throttleMs: 250, now: () => now });
+
+      reporter.event({ phase: 'encode', id: 'Intro', done: 0, total: 100 });
+      now = 500;
+      reporter.event({ phase: 'encode', id: 'Intro', done: 5, total: 100 });
+      now = 1000;
+      reporter.event({ phase: 'encode', id: 'Intro', done: 10, total: 100 });
+      now = 3000;
+      reporter.event({ phase: 'encode', id: 'Intro', done: 100, total: 100 });
+
+      expect(progressCalls).toEqual([
+        'Intro · 0/100 frames',
+        'Intro · 5/100 frames',
+        'Intro · 10/100 frames · 10 fps · ETA 9s',
+        'Intro · 100/100 frames',
+      ]);
+    });
+
+    it('estimates rendering and encoding separately', () => {
+      const progressCalls: string[] = [];
+      const log = { info: vi.fn(), progress: (msg: string) => progressCalls.push(msg), done: vi.fn(), error: vi.fn() };
+      let now = 0;
+      const reporter = createReporter({ stdout: createMockStream(), log, throttleMs: 250, now: () => now });
+
+      reporter.event({ phase: 'render', id: 'Intro', done: 20, total: 100 });
+      now = 2000;
+      reporter.event({ phase: 'render', id: 'Intro', done: 40, total: 100 });
+      // Encoding starts behind the rendering, at a lower count: it must not read as negative progress.
+      now = 2500;
+      reporter.event({ phase: 'encode', id: 'Intro', done: 30, total: 100 });
+      now = 4500;
+      reporter.event({ phase: 'encode', id: 'Intro', done: 50, total: 100 });
+
+      expect(progressCalls).toEqual([
+        'Intro · 20/100 frames',
+        'Intro · 40/100 frames · 10 fps · ETA 6s',
+        'Intro · 30/100 frames',
+        'Intro · 50/100 frames · 10 fps · ETA 5s',
+      ]);
+    });
   });
 });

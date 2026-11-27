@@ -10,6 +10,7 @@ import {
   DEFAULT_CODEC,
   FORMAT_AUDIO_CODECS,
   FORMAT_CODECS,
+  HARDWARE_ACCELERATIONS,
   formatFromPath,
   IMAGE_FORMATS,
   OUTPUT_FORMATS,
@@ -18,6 +19,7 @@ import {
   type AudioCodec,
   type Codec,
   type ContainerFormat,
+  type HardwareAcceleration,
   type ImageFormat,
   type OutputFormat,
   type PixelFormat,
@@ -85,6 +87,8 @@ Options
   --pixel-format <format>     Pixel format (default: yuv420p)
   --prores-profile <profile>  ProRes profile: proxy, lt, standard, hq, 4444, 4444-xq (default: hq)
   --crf <n>                   Quality for mp4/webm, lower is better (default: 18 for h264, 20 for h265, 32 for vp9)
+  --video-bitrate <rate>      Target bitrate such as 8M or 5000k, instead of --crf (needed to size GPU encodes)
+  --hardware-acceleration <m> disable (default), if-possible or required: encode h264/h265 on the GPU
   --audio-codec <codec>       Audio codec: aac (default for mp4/mov) or opus (default for webm)
   --muted                     Mute all audio in the rendered video
   --silent-audio              Add a silent audio track when no audio is present (or when --muted)
@@ -259,6 +263,8 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'pixel-format': { type: 'string' },
           'prores-profile': { type: 'string' },
           crf: { type: 'string' },
+          'video-bitrate': { type: 'string' },
+          'hardware-acceleration': { type: 'string' },
           muted: { type: 'boolean' },
           'silent-audio': { type: 'boolean' },
           'audio-codec': { type: 'string' },
@@ -348,6 +354,22 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
         throw new Error('--crf cannot be used with prores.');
       }
 
+      if (values['video-bitrate'] !== undefined) {
+        if (!/^\d+(\.\d+)?[kKmM]?$/.test(values['video-bitrate'])) {
+          throw new Error(`--video-bitrate must be a number with an optional k or M, such as 8M or 5000k (got "${values['video-bitrate']}").`);
+        }
+        if (effectiveCodec === 'prores') {
+          throw new Error('--video-bitrate cannot be used with prores.');
+        }
+        if (values.crf !== undefined) {
+          throw new Error('--crf and --video-bitrate cannot be used together. Pick one.');
+        }
+      }
+
+      if (values['hardware-acceleration'] !== undefined && !(HARDWARE_ACCELERATIONS as readonly string[]).includes(values['hardware-acceleration'])) {
+        throw new Error(`--hardware-acceleration must be one of ${HARDWARE_ACCELERATIONS.join(', ')} (got "${values['hardware-acceleration']}").`);
+      }
+
       if (values['pixel-format']) {
         if (!(PIXEL_FORMATS as readonly string[]).includes(values['pixel-format'])) {
           throw new Error(`--pixel-format must be one of ${PIXEL_FORMATS.join(', ')} (got "${values['pixel-format']}").`);
@@ -409,6 +431,8 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           pixelFormat: values['pixel-format'] as PixelFormat | undefined,
           proresProfile: values['prores-profile'] as ProResProfile | undefined,
           crf: values.crf === undefined ? undefined : integer(values.crf, '--crf', 0),
+          videoBitrate: values['video-bitrate'],
+          hardwareAcceleration: values['hardware-acceleration'] as HardwareAcceleration | undefined,
           muted: values.muted,
           silentAudio: values['silent-audio'],
           audioCodec: values['audio-codec'] as AudioCodec | undefined,

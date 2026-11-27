@@ -82,4 +82,4 @@ packages/three/               # @free-motion/three (ThreeCanvas)
 | `pnpm ts` | Type checks the core, workspaces, templates and fixtures |
 | `pnpm lint` / `pnpm lint:fix` | ESLint |
 | `pnpm test` | Core and workspace unit tests |
-| `pnpm test:e2e` | Builds, then runs the CLI against `packages/freemotion/test/fixtures/basic` (renders, studio, scroll page) and a fresh `init` project (needs ffmpeg) |
+| `pnpm test:e2e` | Builds the core and workspace packages, then runs the CLI against `packages/freemotion/test/fixtures/basic` (renders, studio, scroll page) and a fresh `init` project (needs ffmpeg) |
