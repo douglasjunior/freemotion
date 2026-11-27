@@ -93,6 +93,7 @@ Options
   --recycle-tabs <n>          Recreate each tab after n frames to bound memory (default: 1000; 0 disables)
   --timeout <ms>              Maximum wait time for delayRender holds in ms (default: 30000)
   --video-cache-mb <mb>       Memory limit for decoded video frames in MB (default: 512)
+  --video-decoder-memory-mb <mb>  Memory limit for the video decoders (ffmpeg) in MB (default: 35% of RAM)
   --gl <backend>              WebGL backend: angle, swangle, egl, swiftshader, vulkan
   --no-download               Fail if the browser is not installed instead of downloading it
   --entry <file>              File that exports the compositions (default: src/compositions.tsx)
@@ -267,6 +268,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           'recycle-tabs': { type: 'string' },
           timeout: { type: 'string' },
           'video-cache-mb': { type: 'string' },
+          'video-decoder-memory-mb': { type: 'string' },
           gl: { type: 'string' },
           download: { type: 'boolean' },
           entry: { type: 'string' },
@@ -417,6 +419,7 @@ export function parseCommand(argv: readonly string[], { cwd, env }: { readonly c
           recycleTabs: values['recycle-tabs'] === undefined ? 1000 : integer(values['recycle-tabs'], '--recycle-tabs', 0),
           timeout: integer(values.timeout, '--timeout', 1000),
           videoCacheMb: integer(values['video-cache-mb'], '--video-cache-mb', 1),
+          videoDecoderMemoryMb: integer(values['video-decoder-memory-mb'], '--video-decoder-memory-mb', 1),
           gl: values.gl as GlBackend | undefined,
           download: values.download,
           ffmpeg: values.ffmpeg ?? env.FREEMOTION_FFMPEG,

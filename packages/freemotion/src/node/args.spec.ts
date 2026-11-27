@@ -47,7 +47,7 @@ describe('parseCommand', () => {
     expect(command).toMatchObject({
       name: 'render',
       quiet: false,
-      options: { root: '/project', compositions: ['Intro'], outDir: 'out', scale: 1, ffmpeg: undefined, buildCache: undefined },
+      options: { root: '/project', compositions: ['Intro'], outDir: 'out', scale: 1, ffmpeg: undefined, buildCache: undefined, videoDecoderMemoryMb: undefined },
     });
     expect(command.name === 'render' && command.options.concurrency).toBeGreaterThanOrEqual(1);
   });
@@ -74,6 +74,7 @@ describe('parseCommand', () => {
         '--gl', 'swangle',
         '--no-download',
         '--video-cache-mb', '1024',
+        '--video-decoder-memory-mb', '2048',
         '--quiet',
         '--image-format', 'jpeg',
         '--jpeg-quality', '85',
@@ -95,6 +96,7 @@ describe('parseCommand', () => {
         gl: 'swangle',
         download: false,
         videoCacheMb: 1024,
+        videoDecoderMemoryMb: 2048,
         ffmpeg: '/opt/ffmpeg',
         imageFormat: 'jpeg',
         jpegQuality: 85,
@@ -193,6 +195,9 @@ describe('parseCommand', () => {
     [['render', 'A', '--video-cache-mb', '0'], /--video-cache-mb must be an integer of at least 1/],
     [['render', 'A', '--video-cache-mb=-5'], /--video-cache-mb must be an integer of at least 1/],
     [['render', 'A', '--video-cache-mb', 'abc'], /--video-cache-mb must be an integer of at least 1/],
+    [['render', 'A', '--video-decoder-memory-mb', '0'], /--video-decoder-memory-mb must be an integer of at least 1/],
+    [['render', 'A', '--video-decoder-memory-mb=-5'], /--video-decoder-memory-mb must be an integer of at least 1/],
+    [['render', 'A', '--video-decoder-memory-mb', 'abc'], /--video-decoder-memory-mb must be an integer of at least 1/],
     [['render', 'A', '--image-format', 'bmp'], /--image-format must be one of/],
     [['render', 'A', '--jpeg-quality', '0'], /--jpeg-quality must be an integer between 1 and 100/],
     [['render', 'A', '--jpeg-quality', '101'], /--jpeg-quality must be an integer between 1 and 100/],

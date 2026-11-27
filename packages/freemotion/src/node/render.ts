@@ -77,6 +77,12 @@ export type RenderOptions = {
   readonly scale: number;
   /** Memory limit for decoded video frames in MB. Default: 512. */
   readonly videoCacheMb?: number;
+  /**
+   * Memory the ffmpeg video decoders may use together, in MB. When a new decoder does not fit, the idle
+   * ones used least recently are closed. Busy ones never are, so the limit can be exceeded briefly.
+   * Default: 35% of the machine's memory.
+   */
+  readonly videoDecoderMemoryMb?: number;
   /** Intermediate frame capture format: png or jpeg (default: png). */
   readonly imageFormat?: ImageFormat;
   /** JPEG quality 1-100 (default: 92). */
@@ -659,7 +665,8 @@ export async function render(options: RenderOptions): Promise<RenderResult[]> {
     const ffmpeg = resolveFfmpeg(root, options.ffmpeg);
     const resolvedPublicDir = publicDir || resolve(root, 'public');
     const cacheBytes = (options.videoCacheMb ?? 512) * 1024 * 1024;
-    videoServer = await startVideoFrameServer({ ffmpeg, publicDir: resolvedPublicDir, cacheBytes });
+    const decoderBudgetBytes = options.videoDecoderMemoryMb === undefined ? undefined : options.videoDecoderMemoryMb * 1024 * 1024;
+    videoServer = await startVideoFrameServer({ ffmpeg, publicDir: resolvedPublicDir, cacheBytes, decoderBudgetBytes });
 
     browser = await launchBrowser({
       executablePath: options.browserExecutable,
