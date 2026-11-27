@@ -257,7 +257,7 @@ npx freemotion render Intro --hardware-acceleration if-possible
 | Linux | NVIDIA NVENC, VA-API (AMD, Intel) |
 | macOS | Apple VideoToolbox |
 
-- **freemotion tries the encoder before using it.** It encodes one tiny frame with the same options the render will use, because an encoder that ffmpeg lists can still fail to start without the GPU, the driver or the device. The answer is remembered while the process runs, and the log says which encoder was picked, or why the CPU was used.
+- **freemotion tries the encoder before using it.** It encodes one frame, at the size of the video and with the same device, filter, encoder and rate options the render will use, because an encoder that ffmpeg lists can still fail to start without the GPU, the driver or the device. The answer is remembered while the process runs, and the log says which encoder was picked, or why the CPU was used.
 - **Quality.** `--crf` does not apply to GPU encoders: with `if-possible` the render falls back to the CPU, and with `required` it fails. NVENC aims for a constant quality that, in a test on a 1080p clip, came out at a file size and sharpness close to `libx264 --crf 18` (16.2 MB against 16.9 MB, SSIM 0.9916 against 0.9927). The other encoders have no such default, so they need `--video-bitrate`. Use it to control size on any encoder, for example `--video-bitrate 8M`.
 - **Only h264 and h265 with `yuv420p`.** VP9, ProRes, GIF and other pixel formats are encoded on the CPU.
 - **What it speeds up.** Only the encoding step. Drawing the frames in Chromium still runs on the CPU, so the gain is largest for long, high-resolution videos.

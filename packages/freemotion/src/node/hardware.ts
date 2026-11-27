@@ -81,13 +81,13 @@ const probed = new Map<string, Promise<string | null>>();
 const firstError = (stderr: string) => stderr.trim().split('\n')[0]?.replace(/^\[[^\]]*\]\s*/, '').trim() || 'ffmpeg failed to start the encoder';
 
 /**
- * Tries the encoder on one tiny frame with the options and the frame size the render will use, and
+ * Tries the encoder on one black frame with the options and the frame size the render will use, and
  * returns null when it works, or the reason ffmpeg gave when it doesn't. Being listed in
  * `ffmpeg -encoders` is not enough: without the GPU, the driver or the device the encoder still fails
  * to start, and GPU encoders refuse frames below a minimum size. The answer is remembered for the process.
  */
 export function probeEncoder(ffmpeg: string, plan: HardwarePlan, { width, height }: FrameSize, spawnFn: Spawn = spawn): Promise<string | null> {
-  const key = [ffmpeg, plan.encoder, ...plan.inputArgs, plan.filter, width, height].join('\0');
+  const key = [ffmpeg, plan.encoder, ...plan.inputArgs, plan.filter, ...plan.rateArgs, width, height].join('\0');
   let result = probed.get(key);
   if (!result) {
     result = new Promise<string | null>((resolve) => {
@@ -96,7 +96,7 @@ export function probeEncoder(ffmpeg: string, plan: HardwarePlan, { width, height
         ...plan.inputArgs,
         '-f', 'lavfi', '-i', `color=c=black:s=${width}x${height}:r=1:d=1`,
         ...(plan.filter ? ['-vf', plan.filter] : []),
-        '-frames:v', '1', '-c:v', plan.encoder, '-f', 'null', '-',
+        '-frames:v', '1', '-c:v', plan.encoder, ...plan.rateArgs, '-f', 'null', '-',
       ], { stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
       child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk));

@@ -124,15 +124,16 @@ describe('probeEncoder', () => {
   }) as unknown as typeof import('node:child_process').spawn;
   const lastArgs = (spawnFn: unknown) => (spawnFn as ReturnType<typeof vi.fn>).mock.calls[0]![1] as string[];
 
-  it('encodes one tiny frame with the same device, filter, encoder and size as the render', async () => {
+  it('encodes one frame with the same device, filter, encoder, rate options and size as the render', async () => {
     const spawnFn = fakeSpawn({ code: 0 });
-    expect(await probeEncoder('ffmpeg', plan, size, spawnFn)).toBeNull();
+    expect(await probeEncoder('ffmpeg', { ...plan, rateArgs: ['-b:v', '8M'] }, size, spawnFn)).toBeNull();
     const args = lastArgs(spawnFn);
     expect(args.indexOf('-vaapi_device')).toBeLessThan(args.indexOf('-i'));
     expect(args[args.indexOf('-i') + 1]).toContain('s=1280x720');
     expect(args[args.indexOf('-vf') + 1]).toBe('format=nv12,hwupload');
     expect(args[args.indexOf('-c:v') + 1]).toBe('h264_vaapi');
     expect(args).toContain('-frames:v');
+    expect(args.slice(args.indexOf('-c:v') + 2)).toEqual(['-b:v', '8M', '-f', 'null', '-']);
   });
 
   it('returns the cause ffmpeg gave first when the encoder does not start', async () => {
@@ -144,12 +145,13 @@ describe('probeEncoder', () => {
     expect(await probeEncoder('ffmpeg', plan, size, fakeSpawn('error'))).toBe('spawn ffmpeg ENOENT');
   });
 
-  it('remembers the answer per binary, encoder, device and size', async () => {
+  it('remembers the answer per binary, encoder, device, rate options and size', async () => {
     const spawnFn = fakeSpawn({ code: 0 });
     await probeEncoder('ffmpeg', plan, size, spawnFn);
     await probeEncoder('ffmpeg', plan, size, spawnFn);
     await probeEncoder('ffmpeg', { ...plan, inputArgs: ['-vaapi_device', '/dev/dri/renderD129'] }, size, spawnFn);
     await probeEncoder('ffmpeg', plan, { width: 64, height: 64 }, spawnFn);
-    expect(spawnFn).toHaveBeenCalledTimes(3);
+    await probeEncoder('ffmpeg', { ...plan, rateArgs: ['-b:v', '8M'] }, size, spawnFn);
+    expect(spawnFn).toHaveBeenCalledTimes(4);
   });
 });
