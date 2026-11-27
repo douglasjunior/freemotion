@@ -32,7 +32,7 @@ import {
   type VideoFormat,
 } from './ffmpeg.js';
 import { type GlBackend } from './gl.js';
-import { chooseEncoder, describeChoice, SOFTWARE } from './hardware.js';
+import { chooseEncoder, describeChoice } from './hardware.js';
 import type { Logger } from './logger.js';
 import { produceInOrder } from './ordered-frames.js';
 import { RENDER_ENTRY } from './paths.js';
@@ -316,6 +316,18 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     throw new Error(`"${meta.id}" renders at ${width}×${height}; ${format.toUpperCase()} needs an even width and height.`);
   }
 
+  // Chosen before the other tabs and the temp folder exist, so that `required` fails early and leaves nothing behind.
+  const acceleration = options.hardwareAcceleration ?? 'disable';
+  const choice = await chooseEncoder({ mode: acceleration, codec, pixelFormat, crf: options.crf, videoBitrate: options.videoBitrate, size: { width, height }, ffmpeg: session.ffmpeg })
+    .catch(async (error: unknown) => {
+      await first.page.close().catch(() => undefined);
+      throw error;
+    });
+  const choiceMessage = describeChoice(acceleration, choice);
+  if (choiceMessage) {
+    options.log.info(choiceMessage);
+  }
+
   const extra = Math.max(0, Math.min(options.concurrency, frames.length) - 1);
   const tabs = [first, ...(await Promise.all(Array.from({ length: extra }, () => openTab(session, job.id, tabOptions))))];
 
@@ -330,15 +342,6 @@ async function renderVideo(session: Session, job: RenderJob, format: VideoFormat
     jobTempDir = await mkdtemp(join(tmpdir(), `freemotion-${job.id}-`));
   }
   const videoOutput = jobTempDir ? join(jobTempDir, `video.${format}`) : job.output;
-
-  const acceleration = options.hardwareAcceleration ?? 'disable';
-  const choice = format === 'gif'
-    ? SOFTWARE
-    : await chooseEncoder({ mode: acceleration, codec, pixelFormat, crf: options.crf, videoBitrate: options.videoBitrate, size: { width, height }, ffmpeg: session.ffmpeg });
-  const choiceMessage = format === 'gif' ? null : describeChoice(acceleration, choice);
-  if (choiceMessage) {
-    options.log.info(choiceMessage);
-  }
 
   const ffmpeg = spawn(session.ffmpeg, ffmpegArgs({
     format,
